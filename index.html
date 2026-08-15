@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Joshua Phillips | Technical Portfolio</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #0b0f17;
+            color: #e8edf5;
+            line-height: 1.6;
+        }
+
+        .container {
+            width: min(1100px, 90%);
+            margin: auto;
+        }
+
+        header {
+            padding: 100px 0 70px;
+        }
+
+        .eyebrow {
+            color: #6ea8ff;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: clamp(3rem, 8vw, 6rem);
+            line-height: 1;
+            margin-bottom: 20px;
+        }
+
+        .tagline {
+            font-size: 1.25rem;
+            color: #aeb8c8;
+            max-width: 700px;
+        }
+
+        section {
+            padding: 55px 0;
+        }
+
+        h2 {
+            font-size: 2rem;
+            margin-bottom: 25px;
+        }
+
+        .projects {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: #121824;
+            border: 1px solid #202b3d;
+            border-radius: 14px;
+            padding: 25px;
+        }
+
+        .card h3 {
+            margin-bottom: 10px;
+            font-size: 1.35rem;
+        }
+
+        .card p {
+            color: #aeb8c8;
+        }
+
+        .status {
+            display: inline-block;
+            margin-top: 18px;
+            font-size: 0.85rem;
+            color: #6ea8ff;
+            font-weight: bold;
+        }
+
+        .skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .skill {
+            background: #121824;
+            border: 1px solid #202b3d;
+            padding: 9px 14px;
+            border-radius: 999px;
+            color: #c7d1df;
+        }
+
+        footer {
+            border-top: 1px solid #202b3d;
+            padding: 35px 0;
+            color: #7f8a99;
+        }
+
+        a {
+            color: #6ea8ff;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="container">
+
+            <div class="eyebrow">
+                Systems • IT • Software
+            </div>
+
+            <h1>Joshua Phillips</h1>
+
+            <p class="tagline">
+                Technical generalist focused on systems troubleshooting,
+                security remediation, software modification, game tooling,
+                and low-level virtualization research.
+            </p>
+
+        </div>
+    </header>
+
+    <main>
+
+        <section>
+            <div class="container">
+
+                <h2>Featured Projects</h2>
+
+                <div class="projects">
+
+                    <div class="card">
+                        <h3>JoshHV</h3>
+
+                        <p>
+                            AMD SVM research hypervisor exploring low-level
+                            virtualization, Windows internals, system
+                            architecture, and custom execution environments.
+                        </p>
+
+                        <span class="status">IN DEVELOPMENT</span>
+                    </div>
+
+
+                    <div class="card">
+                        <h3>Power of Dimensions Offline Framework</h3>
+
+                        <p>
+                            Offline framework and mod-management tooling
+                            developed around an online-dependent game,
+                            including local persistence, rebuilding,
+                            rollback, validation, and installation tooling.
+                        </p>
+
+                        <span class="status">RELEASED PROJECT</span>
+                    </div>
+
+
+                    <div class="card">
+                        <h3>Windows Security Recovery</h3>
+
+                        <p>
+                            Investigation and recovery of a compromised
+                            Windows system involving unauthorized remote
+                            access software, persistence removal, system
+                            rebuilding, and clean-baseline verification.
+                        </p>
+
+                        <span class="status">CASE STUDY</span>
+                    </div>
+
+
+                    <div class="card">
+                        <h3>Mod Repair & Compatibility</h3>
+
+                        <p>
+                            Troubleshooting and repair of broken game mods,
+                            compatibility work, conflict resolution, and
+                            integration into larger mod environments.
+                        </p>
+
+                        <span class="status">ONGOING</span>
+                    </div>
+
+                </div>
+
+            </div>
+        </section>
+
+
+        <section>
+            <div class="container">
+
+                <h2>Skills & Interests</h2>
+
+                <div class="skills">
+                    <span class="skill">Windows</span>
+                    <span class="skill">PowerShell</span>
+                    <span class="skill">System Debugging</span>
+                    <span class="skill">Virtualization</span>
+                    <span class="skill">Security Remediation</span>
+                    <span class="skill">Software Modding</span>
+                    <span class="skill">Troubleshooting</span>
+                    <span class="skill">Game Tooling</span>
+                </div>
+
+            </div>
+        </section>
+
+
+        <section>
+            <div class="container">
+
+                <h2>Find Me</h2>
+
+                <p>
+                    GitHub:
+                    <a href="https://github.com/ShdWolf579">
+                        github.com/ShdWolf579
+                    </a>
+                </p>
+
+            </div>
+        </section>
+
+    </main>
+
+
+    <footer>
+        <div class="container">
+            © 2026 Joshua Phillips
+        </div>
+    </footer>
+
+</body>
+</html>

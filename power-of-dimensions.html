@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Power of Dimensions Offline Framework | Joshua Phillips</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #0b0f17;
+            color: #e8edf5;
+            line-height: 1.7;
+        }
+
+        .container {
+            width: min(900px, 90%);
+            margin: auto;
+        }
+
+        nav {
+            border-bottom: 1px solid #202b3d;
+            padding: 18px 0;
+        }
+
+        nav a {
+            color: #6ea8ff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        header {
+            padding: 90px 0 60px;
+        }
+
+        .eyebrow {
+            color: #6ea8ff;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: clamp(2.5rem, 7vw, 4.5rem);
+            line-height: 1.05;
+            margin-bottom: 20px;
+        }
+
+        .lead {
+            color: #aeb8c8;
+            font-size: 1.2rem;
+            max-width: 760px;
+        }
+
+        section {
+            padding: 45px 0;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 18px;
+        }
+
+        p {
+            color: #b7c1cf;
+            margin-bottom: 18px;
+        }
+
+        .panel {
+            background: #121824;
+            border: 1px solid #202b3d;
+            border-radius: 14px;
+            padding: 28px;
+            margin-top: 20px;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .feature {
+            background: #121824;
+            border: 1px solid #202b3d;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .feature h3 {
+            margin-bottom: 8px;
+        }
+
+        .feature p {
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 11px 18px;
+            border-radius: 8px;
+            background: #6ea8ff;
+            color: #08101c;
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        footer {
+            border-top: 1px solid #202b3d;
+            padding: 35px 0;
+            margin-top: 50px;
+            color: #7f8a99;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav>
+        <div class="container">
+            <a href="index.html">← Back to Portfolio</a>
+        </div>
+    </nav>
+
+    <header>
+        <div class="container">
+
+            <div class="eyebrow">Released Project</div>
+
+            <h1>Power of Dimensions Offline Framework</h1>
+
+            <p class="lead">
+                An unofficial offline framework and mod-management environment
+                built around an online-dependent RPG Maker / NW.js game.
+            </p>
+
+        </div>
+    </header>
+
+    <main>
+
+        <section>
+            <div class="container">
+
+                <h2>The Problem</h2>
+
+                <p>
+                    Power of Dimensions depended on online services for core
+                    functionality including authentication, persistence,
+                    progression, inventory, and other game systems.
+                </p>
+
+                <p>
+                    The project explored whether those dependencies could be
+                    replaced with a local environment while preserving the
+                    original game's functionality and providing a foundation
+                    for offline modding.
+                </p>
+
+            </div>
+        </section>
+
+
+        <section>
+            <div class="container">
+
+                <h2>What I Built</h2>
+
+                <div class="features">
+
+                    <div class="feature">
+                        <h3>Local Backend</h3>
+                        <p>
+                            Local database-backed authentication, saves,
+                            progression, inventory, and game state.
+                        </p>
+                    </div>
+
+                    <div class="feature">
+                        <h3>Offline Play</h3>
+                        <p>
+                            Removed dependence on external online services for
+                            supported single-player functionality.
+                        </p>
+                    </div>
+
+                    <div class="feature">
+                        <h3>Mod Manager</h3>
+                        <p>
+                            Built tooling for rebuilding modified game data
+                            from a known clean baseline.
+                        </p>
+                    </div>
+
+                    <div class="feature">
+                        <h3>Rollback</h3>
+                        <p>
+                            Backup and recovery mechanisms designed to restore
+                            known-good states when changes fail.
+                        </p>
+                    </div>
+
+                    <div class="feature">
+                        <h3>Build Validation</h3>
+                        <p>
+                            Version checks, validation, and integrity tooling
+                            used to reduce installation and compatibility issues.
+                        </p>
+                    </div>
+
+                    <div class="feature">
+                        <h3>Installer Tooling</h3>
+                        <p>
+                            Installer workflow covering setup, validation,
+                            backups, and deployment of the offline environment.
+                        </p>
+                    </div>
+
+                </div>
+
+            </div>
+        </section>
+
+
+        <section>
+            <div class="container">
+
+                <h2>Technical Work</h2>
+
+                <div class="panel">
+
+                    <p>
+                        The project involved investigating how the game stored,
+                        loaded, and exchanged data, identifying which systems
+                        required replacement, and building local equivalents
+                        around those dependencies.
+                    </p>
+
+                    <p>
+                        Development also included compatibility testing,
+                        installer validation, transactional mod rebuilding,
+                        checksums, rollback behavior, and repeated live-build
+                        testing.
+                    </p>
+
+                </div>
+
+            </div>
+        </section>
+
+
+        <section>
+            <div class="container">
+
+                <h2>Result</h2>
+
+                <p>
+                    The finished framework produced a playable offline
+                    environment with separate local persistence and a
+                    foundation for additional modding and preservation work.
+                </p>
+
+                <a class="button"
+                   href="https://shadowwolf579.itch.io/power-of-dimensions-offline-patch-unofficial"
+                   target="_blank"
+                   rel="noopener noreferrer">
+                    View Public Release
+                </a>
+
+            </div>
+        </section>
+
+    </main>
+
+    <footer>
+        <div class="container">
+            © 2026 Joshua Phillips
+        </div>
+    </footer>
+
+</body>
+</html>

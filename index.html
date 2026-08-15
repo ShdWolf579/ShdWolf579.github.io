@@ -1,7 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
+<meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Joshua Phillips | Technical Portfolio</title>
@@ -11,6 +8,10 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
@@ -25,8 +26,40 @@
             margin: auto;
         }
 
+        nav {
+            border-bottom: 1px solid #202b3d;
+            padding: 18px 0;
+        }
+
+        nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo {
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .nav-links a {
+            color: #aeb8c8;
+            text-decoration: none;
+        }
+
+        .nav-links a:hover {
+            color: #6ea8ff;
+        }
+
         header {
-            padding: 100px 0 70px;
+            padding: 100px 0 80px;
         }
 
         .eyebrow {
@@ -46,16 +79,47 @@
         .tagline {
             font-size: 1.25rem;
             color: #aeb8c8;
-            max-width: 700px;
+            max-width: 760px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 11px 18px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            border: 1px solid #2f415c;
+            color: #e8edf5;
+            background: #121824;
+            transition: 0.2s ease;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            border-color: #6ea8ff;
+            background: #182235;
+        }
+
+        .button.primary {
+            background: #6ea8ff;
+            color: #08101c;
+            border-color: #6ea8ff;
         }
 
         section {
-            padding: 55px 0;
+            padding: 60px 0;
         }
 
         h2 {
             font-size: 2rem;
-            margin-bottom: 25px;
+            margin-bottom: 28px;
         }
 
         .projects {
@@ -69,6 +133,12 @@
             border: 1px solid #202b3d;
             border-radius: 14px;
             padding: 25px;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: #3d5f8e;
         }
 
         .card h3 {
@@ -88,6 +158,26 @@
             font-weight: bold;
         }
 
+        .card-actions {
+            margin-top: 20px;
+        }
+
+        .card-actions a {
+            color: #6ea8ff;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .card-actions a:hover {
+            text-decoration: underline;
+        }
+
+        .about-text {
+            max-width: 780px;
+            color: #aeb8c8;
+            font-size: 1.05rem;
+        }
+
         .skills {
             display: flex;
             flex-wrap: wrap;
@@ -102,6 +192,12 @@
             color: #c7d1df;
         }
 
+        .contact-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
         footer {
             border-top: 1px solid #202b3d;
             padding: 35px 0;
@@ -111,10 +207,35 @@
         a {
             color: #6ea8ff;
         }
+
+        @media (max-width: 650px) {
+            nav .container {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            header {
+                padding-top: 70px;
+            }
+        }
     </style>
 </head>
 
 <body>
+
+    <nav>
+        <div class="container">
+            <div class="logo">Joshua Phillips</div>
+
+            <div class="nav-links">
+                <a href="#projects">Projects</a>
+                <a href="#about">About</a>
+                <a href="#skills">Skills</a>
+                <a href="#contact">Contact</a>
+            </div>
+        </div>
+    </nav>
+
 
     <header>
         <div class="container">
@@ -131,12 +252,23 @@
                 and low-level virtualization research.
             </p>
 
+            <div class="hero-buttons">
+                <a class="button primary" href="#projects">View Projects</a>
+
+                <a class="button"
+                   href="https://github.com/ShdWolf579"
+                   target="_blank">
+                    GitHub
+                </a>
+            </div>
+
         </div>
     </header>
 
+
     <main>
 
-        <section>
+        <section id="projects">
             <div class="container">
 
                 <h2>Featured Projects</h2>
@@ -153,6 +285,10 @@
                         </p>
 
                         <span class="status">IN DEVELOPMENT</span>
+
+                        <div class="card-actions">
+                            <a href="#about">Project details coming soon →</a>
+                        </div>
                     </div>
 
 
@@ -202,7 +338,25 @@
         </section>
 
 
-        <section>
+        <section id="about">
+            <div class="container">
+
+                <h2>About</h2>
+
+                <p class="about-text">
+                    I work across PC troubleshooting, Windows systems,
+                    security remediation, software modification, modding,
+                    and low-level systems research. I enjoy taking problems
+                    that are broken, unclear, or undocumented and figuring
+                    out how they work well enough to repair, modify, or build
+                    something new around them.
+                </p>
+
+            </div>
+        </section>
+
+
+        <section id="skills">
             <div class="container">
 
                 <h2>Skills & Interests</h2>
@@ -216,23 +370,27 @@
                     <span class="skill">Software Modding</span>
                     <span class="skill">Troubleshooting</span>
                     <span class="skill">Game Tooling</span>
+                    <span class="skill">Git & GitHub</span>
                 </div>
 
             </div>
         </section>
 
 
-        <section>
+        <section id="contact">
             <div class="container">
 
                 <h2>Find Me</h2>
 
-                <p>
-                    GitHub:
-                    <a href="https://github.com/ShdWolf579">
-                        github.com/ShdWolf579
+                <div class="contact-links">
+
+                    <a class="button"
+                       href="https://github.com/ShdWolf579"
+                       target="_blank">
+                        GitHub
                     </a>
-                </p>
+
+                </div>
 
             </div>
         </section>

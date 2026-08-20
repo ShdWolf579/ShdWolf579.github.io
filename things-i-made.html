@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Things I Made | Joshua Phillips</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #0b0f17;
+            color: #e8edf5;
+            line-height: 1.65;
+        }
+        .container { width: min(1000px, 90%); margin: auto; }
+        nav { border-bottom: 1px solid #202b3d; padding: 18px 0; }
+        nav .container { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+        nav a { color: #6ea8ff; text-decoration: none; font-weight: bold; }
+        header { padding: 80px 0 45px; }
+        .eyebrow { color: #6ea8ff; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+        h1 { font-size: clamp(2.6rem, 7vw, 4.8rem); line-height: 1.05; margin-bottom: 18px; }
+        .lead { color: #aeb8c8; max-width: 760px; font-size: 1.15rem; }
+        main { padding-bottom: 70px; }
+        .projects { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: #121824; border: 1px solid #202b3d; border-radius: 14px; padding: 26px; }
+        .card h2 { margin-bottom: 10px; font-size: 1.45rem; }
+        .card p { color: #aeb8c8; margin-bottom: 16px; }
+        .status { color: #6ea8ff; font-size: .85rem; font-weight: bold; }
+        .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+        .button { display: inline-block; padding: 10px 15px; border-radius: 8px; text-decoration: none; font-weight: bold; border: 1px solid #2f415c; color: #e8edf5; background: #182235; }
+        .button.primary { background: #6ea8ff; color: #08101c; border-color: #6ea8ff; }
+        .button:hover { transform: translateY(-1px); }
+        .steps { margin-top: 18px; padding-top: 18px; border-top: 1px solid #202b3d; }
+        .steps ol { padding-left: 22px; color: #c1cad7; }
+        .steps li { margin: 7px 0; }
+        .note { margin-top: 14px; color: #7f8a99; font-size: .9rem; }
+        footer { border-top: 1px solid #202b3d; padding: 35px 0; color: #7f8a99; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <a href="index.html">← Back to Portfolio</a>
+            <a href="https://github.com/ShdWolf579" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </div>
+    </nav>
+
+    <header>
+        <div class="container">
+            <div class="eyebrow">Projects • Tools • Mods</div>
+            <h1>Things I Made</h1>
+            <p class="lead">Small tools, released projects, and weird fixes that turned into something useful enough to keep.</p>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="projects">
+                <article class="card">
+                    <h2>Spotify Web — Liked Songs Sorter</h2>
+                    <p>
+                        A Violentmonkey userscript for Spotify's web player that scans the full Liked Songs list,
+                        adds sorting and search, and lets you play a track without leaving the custom sorted view.
+                        Built because Spotify's web player doesn't provide normal Liked Songs sorting.
+                    </p>
+                    <span class="status">USERSCRIPT • v0.3.0</span>
+
+                    <div class="actions">
+                        <a class="button primary" href="spotify-liked-sorter.user.js">Install Userscript</a>
+                        <a class="button" href="https://github.com/ShdWolf579/ShdWolf579.github.io/blob/main/spotify-liked-sorter.user.js" target="_blank" rel="noopener noreferrer">View Source</a>
+                    </div>
+
+                    <div class="steps">
+                        <ol>
+                            <li>Install Violentmonkey in your browser.</li>
+                            <li>Open the userscript link above and install it.</li>
+                            <li>Open Spotify Web Player → Liked Songs.</li>
+                            <li>Click <strong>Liked Sort</strong> → <strong>Scan library</strong>.</li>
+                            <li>Sort/search the library and click songs to play them in place.</li>
+                        </ol>
+                    </div>
+                    <p class="note">Unofficial project. Not affiliated with or endorsed by Spotify.</p>
+                </article>
+
+                <article class="card">
+                    <h2>Power of Dimensions Offline Framework</h2>
+                    <p>
+                        An offline framework and mod-management environment for an online-dependent game,
+                        including local persistence, rebuilding, rollback, validation, and installer tooling.
+                    </p>
+                    <span class="status">RELEASED PROJECT</span>
+                    <div class="actions">
+                        <a class="button" href="power-of-dimensions.html">Case Study</a>
+                        <a class="button" href="https://shadowwolf579.itch.io/power-of-dimensions-offline-patch-unofficial" target="_blank" rel="noopener noreferrer">View Release</a>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">© 2026 Joshua Phillips</div>
+    </footer>
+</body>
+</html>

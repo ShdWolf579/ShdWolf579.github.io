@@ -34,6 +34,7 @@
         .steps ol { padding-left: 22px; color: #c1cad7; }
         .steps li { margin: 7px 0; }
         .note { margin-top: 14px; color: #7f8a99; font-size: .9rem; }
+        .warning { color: #f4c76b !important; }
         footer { border-top: 1px solid #202b3d; padding: 35px 0; color: #7f8a99; }
     </style>
 </head>
@@ -59,24 +60,30 @@
                 <article class="card">
                     <h2>Spotify Web — Liked Songs Sorter</h2>
                     <p>
-                        A Violentmonkey userscript for Spotify's web player that scans the full Liked Songs list,
+                        A Violentmonkey userscript for Spotify's web player that loads your full Liked Songs library,
                         adds sorting and search, and lets you play a track without leaving the custom sorted view.
                         Built because Spotify's web player doesn't provide normal Liked Songs sorting.
                     </p>
-                    <span class="status">USERSCRIPT • v0.3.0</span>
+                    <span class="status">USERSCRIPT • v0.7.0</span>
 
                     <div class="actions">
-                        <a class="button primary" href="spotify-liked-sorter.user.js">Install Userscript</a>
-                        <a class="button" href="https://github.com/ShdWolf579/ShdWolf579.github.io/blob/main/spotify-liked-sorter.user.js" target="_blank" rel="noopener noreferrer">View Source</a>
+                        <a class="button primary" href="spotify-liked-sorter.user.js">Automatic Install</a>
+                        <a class="button" href="https://github.com/ShdWolf579/ShdWolf579.github.io/blob/main/spotify-liked-sorter.user.js" target="_blank" rel="noopener noreferrer">Manual Install / View Source</a>
                     </div>
+
+                    <p class="note warning">
+                        Brave + some Violentmonkey builds may crash when opening userscript install links directly.
+                        If that happens, use Manual Install / View Source instead.
+                    </p>
 
                     <div class="steps">
                         <ol>
                             <li>Install Violentmonkey in your browser.</li>
-                            <li>Open the userscript link above and install it.</li>
+                            <li>For automatic install, click <strong>Automatic Install</strong> and approve the userscript.</li>
+                            <li>If the install link crashes your browser, open <strong>Manual Install / View Source</strong>, copy the script, then open Violentmonkey → <strong>Dashboard</strong> → <strong>New</strong>, replace the template, and save.</li>
                             <li>Open Spotify Web Player → Liked Songs.</li>
-                            <li>Click <strong>Liked Sort</strong> → <strong>Scan library</strong>.</li>
-                            <li>Sort/search the library and click songs to play them in place.</li>
+                            <li>Click <strong>Liked Sort</strong> → <strong>Refresh library</strong>.</li>
+                            <li>Sort/search the full library and click songs to play them without closing the sorter.</li>
                         </ol>
                     </div>
                     <p class="note">Unofficial project. Not affiliated with or endorsed by Spotify.</p>

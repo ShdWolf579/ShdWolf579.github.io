@@ -1,0 +1,38 @@
+name: Assemble Spotify v0.8.3
+
+on:
+  push:
+    branches:
+      - release/spotify-liked-sorter-v0.8.3
+    paths:
+      - .github/workflows/assemble-spotify-v0.8.3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/spotify-liked-sorter-v0.8.3
+
+      - name: Assemble and verify tested release
+        shell: bash
+        run: |
+          cat .release/spotify-v0.8.3.part*.b64 | base64 -d > spotify-liked-sorter.user.js
+          test "$(git hash-object spotify-liked-sorter.user.js)" = "2684545d4889d8cdd590c12c6f94b884ec609bfa"
+          node --check spotify-liked-sorter.user.js
+
+      - name: Commit exact release and remove staging files
+        shell: bash
+        run: |
+          rm -rf .release
+          rm -f .github/workflows/assemble-spotify-v0.8.3.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- spotify-liked-sorter.user.js
+          git add -u -- .release .github/workflows/assemble-spotify-v0.8.3.yml
+          git commit -m "Release Spotify Liked Songs sorter v0.8.3"
+          git push origin HEAD:release/spotify-liked-sorter-v0.8.3

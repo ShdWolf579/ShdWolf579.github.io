@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Spotify Web - Liked Songs Sorter
 // @namespace    josh.spotify.liked-sorter
-// @version      0.7.0
-// @description  Full-library Spotify Liked Songs sorter/search using Spotify Web Player's own authenticated GraphQL session, with track-page playback fallback.
+// @version      0.8.3
+// @description  Full-library Spotify Liked Songs sorter/search with sorted-view playback queue support.
 // @match        https://open.spotify.com/*
 // @homepageURL  https://shdwolf579.github.io/things-i-made.html
 // @downloadURL  https://shdwolf579.github.io/spotify-liked-sorter.user.js
@@ -27,16 +27,73 @@
     let spotifyBearer = '';
     let liveFetchLibraryTracksHash = '';
 
+    // Spotify Connect command details are captured from the web player's own
+    // playback requests. We reuse that exact active device route/auth when
+    // installing the sorter's explicit next/previous queue.
+    let connectCommandUrl = '';
+    let connectCommandAuth = '';
+    let connectClientToken = '';
+    let connectDeviceId = '';
+    let connectSpClientBase = '';
+
+    const SORTER_QUEUE_LOOKAHEAD = 80;
+    const SORTER_QUEUE_HISTORY = 10;
+
+    let sorterSequence = [];
+    let sorterSequenceIndex = -1;
+    let sorterSequenceActive = false;
+    let sorterSequenceGuardUntil = 0;
+    let sorterLastObservedTrackId = '';
+    let sorterQueueSyncPromise = null;
+    let sorterQueueMonitorTimer = null;
+    let sorterQueueArmPromise = null;
+    let activeSorterTrackId = '';
+    const sorterQueueUidByTrackId = new Map();
+
     function captureSpotifyRequest(url, headers, body) {
         try {
             const h = headers instanceof Headers ? headers : new Headers(headers || {});
+            const urlText = String(url || '');
             const auth = h.get('authorization');
+
             if (auth && /^Bearer\s+/i.test(auth)) {
                 spotifyBearer = auth.replace(/^Bearer\s+/i, '').trim();
                 window.__joshSpotifyBearer = spotifyBearer;
             }
 
-            if (!url || !String(url).includes('pathfinder')) return;
+            const spClientMatch = urlText.match(/https?:\/\/([a-z0-9-]*spclient[a-z0-9.\-]*)/i);
+            if (spClientMatch) {
+                connectSpClientBase = `https://${spClientMatch[1]}`;
+                if (auth) connectCommandAuth = auth;
+                connectClientToken = h.get('client-token') || connectClientToken;
+            }
+
+            // Spotify's web player registers its local playback device before it
+            // necessarily sends a player-command request. Capture that device id
+            // so we can derive the self-targeted Connect command route early.
+            if (urlText.includes('/track-playback/v1/devices') && body) {
+                try {
+                    const registration = typeof body === 'string' ? JSON.parse(body) : body;
+                    const deviceId = registration?.device?.device_id || '';
+                    if (deviceId) connectDeviceId = deviceId;
+                } catch {}
+            }
+
+            if (urlText.includes('/connect-state/v1/player/command/from/')) {
+                connectCommandUrl = urlText;
+                if (auth) connectCommandAuth = auth;
+                connectClientToken = h.get('client-token') || connectClientToken;
+
+                const route = urlText.match(/\/from\/([^/]+)\/to\/([^/?#]+)/);
+                if (route?.[1]) connectDeviceId = route[1];
+            }
+
+            if (!connectCommandUrl && connectSpClientBase && connectDeviceId && connectCommandAuth) {
+                connectCommandUrl =
+                    `${connectSpClientBase}/connect-state/v1/player/command/from/${connectDeviceId}/to/${connectDeviceId}`;
+            }
+
+            if (!urlText.includes('pathfinder')) return;
             if (!body) return;
 
             const payload = typeof body === 'string' ? JSON.parse(body) : body;
@@ -285,6 +342,35 @@
                 background: #242424;
             }
 
+            .${APP_ID}-row.${APP_ID}-now-playing {
+                background: rgba(30, 215, 96, .12);
+                box-shadow: inset 4px 0 0 #1ed760;
+            }
+
+            .${APP_ID}-row.${APP_ID}-now-playing:hover {
+                background: rgba(30, 215, 96, .17);
+            }
+
+            .${APP_ID}-row.${APP_ID}-now-playing .${APP_ID}-song-title {
+                color: #1ed760;
+            }
+
+            .${APP_ID}-playing-badge {
+                display: none;
+                flex: 0 0 auto;
+                border: 1px solid rgba(30, 215, 96, .55);
+                border-radius: 999px;
+                padding: 2px 6px;
+                color: #1ed760;
+                font-size: 9px;
+                font-weight: 800;
+                letter-spacing: .05em;
+            }
+
+            .${APP_ID}-row.${APP_ID}-now-playing .${APP_ID}-playing-badge {
+                display: inline-flex;
+            }
+
             .${APP_ID}-cover {
                 width: 42px;
                 height: 42px;
@@ -420,6 +506,19 @@
             if (track) playTrackInPlace(track);
         });
 
+        // Spotify-style convenience: double-click anywhere on a song row to play
+        // it. Ignore interactive controls so a double-click on the green button
+        // does not accidentally issue two play requests.
+        $(`#${APP_ID}-rows`).addEventListener('dblclick', (e) => {
+            if (e.target.closest('button, input, select, a')) return;
+            const row = e.target.closest(`.${APP_ID}-row`);
+            if (!row) return;
+
+            const id = row.getAttribute(`data-${APP_ID}-track`);
+            const track = tracks.find(t => t.id === id);
+            if (track) playTrackInPlace(track);
+        });
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && $(`#${APP_ID}-overlay`).classList.contains('open')) {
                 closeOverlay();
@@ -447,6 +546,7 @@
         for (const grid of grids) {
             const n = Number(grid.getAttribute('aria-rowcount') || 0);
             if (Number.isFinite(n) && n > 1 && n < 100000) {
+                // Spotify normally counts the column-header row too.
                 return Math.max(1, n - 1);
             }
         }
@@ -647,7 +747,6 @@
         if (!best || bestScore <= 0) {
             throw new Error('Could not find Spotify’s moving Liked Songs scroll area.');
         }
-
         spotifyScrollContainer = best;
         return best;
     }
@@ -997,7 +1096,7 @@
         }
 
         rows.innerHTML = visibleTracks.map(t => `
-            <div class="${APP_ID}-row">
+            <div class="${APP_ID}-row" data-${APP_ID}-track="${escapeHtml(t.id)}">
                 <div>
                     ${t.image
                         ? `<img class="${APP_ID}-cover" src="${escapeHtml(t.image)}" alt="">`
@@ -1012,6 +1111,7 @@
                             data-title="${escapeHtml(t.title)}"
                             title="Play ${escapeHtml(t.title)}">▶</button>
                         <span title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</span>
+                        <span class="${APP_ID}-playing-badge">NOW PLAYING</span>
                     </div>
                     <div class="${APP_ID}-muted" title="${escapeHtml(t.artistText)}">
                         ${escapeHtml(t.artistText)}
@@ -1029,6 +1129,8 @@
                 <div class="${APP_ID}-muted">${escapeHtml(formatDuration(t.durationMs))}</div>
             </div>
         `).join('');
+
+        updateNowPlayingHighlight();
     }
 
     async function openOverlay() {
@@ -1148,6 +1250,7 @@
         return true;
     }
 
+
     async function waitUntil(test, timeoutMs = 5000, intervalMs = 80) {
         const started = Date.now();
         while (Date.now() - started < timeoutMs) {
@@ -1160,18 +1263,336 @@
         return null;
     }
 
+    function nowPlayingTrackId() {
+        // Spotify has moved the now-playing metadata around over time. Prefer a
+        // real /track/ link from any current player surface, then fall back to
+        // title + artist matching against the loaded library.
+        const linkSelectors = [
+            '[aria-label^="Now playing:"] a[href^="/track/"]',
+            'footer a[href^="/track/"]',
+            '[data-testid="now-playing-widget"] a[href^="/track/"]',
+            '[data-testid="now-playing-bar"] a[href^="/track/"]',
+            'a[data-testid="context-item-link"][href^="/track/"]'
+        ];
+
+        for (const selector of linkSelectors) {
+            for (const a of $$(selector)) {
+                const href = a.getAttribute('href') || '';
+                const id = href.match(/\/track\/([A-Za-z0-9]+)/)?.[1] || '';
+                if (id) {
+                    activeSorterTrackId = id;
+                    return id;
+                }
+            }
+        }
+
+        const scopes = [
+            ...$$('[aria-label^="Now playing:"]'),
+            ...$$('footer'),
+            ...$$('[data-testid="now-playing-widget"]'),
+            ...$$('[data-testid="now-playing-bar"]')
+        ];
+
+        for (const scope of scopes) {
+            const title = (
+                scope.querySelector('a[data-testid="context-item-link"]')?.textContent ||
+                scope.querySelector('a[href^="/track/"]')?.textContent ||
+                scope.querySelector('a[href^="/album/"]')?.textContent ||
+                ''
+            ).trim();
+            if (!title) continue;
+
+            const artists = $$('a[href^="/artist/"]', scope)
+                .map(a => (a.textContent || '').trim())
+                .filter(Boolean);
+            const artistText = artists.join(', ');
+
+            const matches = tracks.filter(t =>
+                t.title.localeCompare(title, undefined, { sensitivity: 'base' }) === 0
+            );
+            const exact = artistText
+                ? matches.find(t =>
+                    t.artistText.localeCompare(artistText, undefined, { sensitivity: 'base' }) === 0
+                )
+                : null;
+            const found = exact || (matches.length === 1 ? matches[0] : null);
+            if (found?.id) {
+                activeSorterTrackId = found.id;
+                return found.id;
+            }
+        }
+
+        // Keep the last sorter-started id while Spotify's DOM is transitioning.
+        return activeSorterTrackId || '';
+    }
+
+    function syncBrowserTabTitle(activeId) {
+        if (!activeId) return;
+
+        const track = tracks.find(t => t.id === activeId);
+        if (!track?.title) return;
+
+        const artist = track.artistText ? ` • ${track.artistText}` : '';
+        const wanted = `${track.title}${artist} | Spotify`;
+
+        // Spotify's SPA route restoration can overwrite document.title after a
+        // sorter-started track begins. Re-assert the actual now-playing title so
+        // the browser tab follows playback instead of sticking on Liked Songs or
+        // the temporary track page we used to start playback.
+        if (document.title !== wanted) document.title = wanted;
+    }
+
+    function updateNowPlayingHighlight() {
+        const activeId = nowPlayingTrackId();
+        const attr = `data-${APP_ID}-track`;
+
+        syncBrowserTabTitle(activeId);
+
+        for (const row of $$(`.${APP_ID}-row`)) {
+            const isActive = Boolean(activeId && row.getAttribute(attr) === activeId);
+            row.classList.toggle(`${APP_ID}-now-playing`, isActive);
+
+            const play = row.querySelector(`button[data-${APP_ID}-play]`);
+            if (play) {
+                play.textContent = isActive ? '🔊' : '▶';
+                play.title = isActive
+                    ? 'Currently playing'
+                    : `Play ${play.getAttribute('data-title') || ''}`.trim();
+            }
+        }
+    }
+
+    function startNowPlayingHighlightMonitor() {
+        updateNowPlayingHighlight();
+        window.setInterval(updateNowPlayingHighlight, 650);
+    }
+
+    function randomHex32() {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function queueUidForTrack(track) {
+        let uid = sorterQueueUidByTrackId.get(track.id);
+        if (!uid) {
+            uid = randomHex32();
+            sorterQueueUidByTrackId.set(track.id, uid);
+        }
+        return uid;
+    }
+
+    function sorterQueueTrackPayload(track) {
+        const metadata = {};
+        if (track.title) metadata.title = track.title;
+        if (track.artistText) metadata.artist_name = track.artistText;
+        if (track.album) metadata.album_title = track.album;
+        if (track.image) metadata.image_url = track.image;
+
+        return {
+            uri: `spotify:track:${track.id}`,
+            uid: queueUidForTrack(track),
+            metadata,
+            provider: 'queue'
+        };
+    }
+
+    async function waitForConnectCommandRoute(timeoutMs = 2500) {
+        const started = Date.now();
+        while (Date.now() - started < timeoutMs) {
+            if (!connectCommandUrl && connectSpClientBase && connectDeviceId && connectCommandAuth) {
+                connectCommandUrl =
+                    `${connectSpClientBase}/connect-state/v1/player/command/from/${connectDeviceId}/to/${connectDeviceId}`;
+            }
+            if (connectCommandUrl && connectCommandAuth) return true;
+            await sleep(80);
+        }
+        return Boolean(connectCommandUrl && connectCommandAuth);
+    }
+
+    async function sendSorterConnectCommand(endpoint, extra = {}) {
+        const ready = await waitForConnectCommandRoute();
+        if (!ready) {
+            console.warn('[Liked Sort] Spotify Connect route was not captured yet.');
+            return false;
+        }
+
+        const headers = {
+            'Authorization': connectCommandAuth,
+            'Accept': '*/*',
+            'Content-Type': 'application/json;charset=UTF-8',
+            'app-platform': 'WebPlayer'
+        };
+        if (connectClientToken) headers['Client-Token'] = connectClientToken;
+
+        const command = {
+            endpoint,
+            logging_params: {
+                command_id: randomHex32(),
+                page_instance_ids: [],
+                interaction_ids: []
+            },
+            ...extra
+        };
+
+        try {
+            const response = await fetch(connectCommandUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ command })
+            });
+
+            if (!response.ok) {
+                const detail = (await response.text()).slice(0, 180);
+                console.warn(
+                    `[Liked Sort] Spotify Connect ${endpoint} failed (${response.status}):`,
+                    detail
+                );
+                return false;
+            }
+            return true;
+        } catch (err) {
+            console.warn(`[Liked Sort] Spotify Connect ${endpoint} request failed:`, err);
+            return false;
+        }
+    }
+
+    async function syncSorterQueueAt(index, quiet = false) {
+        if (!sorterSequenceActive) return false;
+        if (index < 0 || index >= sorterSequence.length) return false;
+
+        if (sorterQueueSyncPromise) return sorterQueueSyncPromise;
+
+        sorterQueueSyncPromise = (async () => {
+            const prevTracks = sorterSequence
+                .slice(Math.max(0, index - SORTER_QUEUE_HISTORY), index)
+                .map(sorterQueueTrackPayload);
+
+            const nextTracks = sorterSequence
+                .slice(index + 1, index + 1 + SORTER_QUEUE_LOOKAHEAD)
+                .map(sorterQueueTrackPayload);
+
+            const ok = await sendSorterConnectCommand('set_queue', {
+                next_tracks: nextTracks,
+                prev_tracks: prevTracks
+            });
+
+            if (ok) {
+                sorterSequenceIndex = index;
+                if (!quiet) {
+                    const remaining = Math.max(0, sorterSequence.length - index - 1);
+                    setStatus(
+                        `Playing in sorter order — ${remaining.toLocaleString()} song${remaining === 1 ? '' : 's'} after this one 😎`
+                    );
+                }
+            }
+            return ok;
+        })();
+
+        try {
+            return await sorterQueueSyncPromise;
+        } finally {
+            sorterQueueSyncPromise = null;
+        }
+    }
+
+    function startSorterQueueMonitor() {
+        if (sorterQueueMonitorTimer) return;
+
+        sorterQueueMonitorTimer = window.setInterval(async () => {
+            if (!sorterSequenceActive || sorterQueueSyncPromise) return;
+
+            const id = nowPlayingTrackId();
+            if (!id || id === sorterLastObservedTrackId) return;
+
+            sorterLastObservedTrackId = id;
+            const index = sorterSequence.findIndex(t => t.id === id);
+
+            if (index >= 0) {
+                sorterSequenceIndex = index;
+                // Refill Spotify's explicit queue as playback advances so even
+                // very large sorted libraries can keep going past the 80-track
+                // next_tracks window exposed by Connect state.
+                await syncSorterQueueAt(index, true);
+                return;
+            }
+
+            // If the user deliberately starts something outside the sorter after
+            // the initial playback transition, release queue ownership.
+            if (Date.now() > sorterSequenceGuardUntil) {
+                sorterSequenceActive = false;
+                sorterSequence = [];
+                sorterSequenceIndex = -1;
+                setStatus('Sorter playback queue released — Spotify playback took over.');
+            }
+        }, 700);
+    }
+
+    async function activateSorterSequence(track) {
+        const source = visibleTracks.length ? [...visibleTracks] : [...tracks];
+        const index = source.findIndex(t => t.id === track.id);
+        if (index < 0) return false;
+
+        sorterSequence = source;
+        sorterSequenceIndex = index;
+        sorterSequenceActive = true;
+        sorterSequenceGuardUntil = Date.now() + 4500;
+        activeSorterTrackId = track.id;
+        updateNowPlayingHighlight();
+
+        // Do not let the queue monitor react to the OLD now-playing track while
+        // Spotify is still switching to the song the sorter just requested.
+        await waitUntil(() => nowPlayingMatches(track), 2500, 100);
+        sorterLastObservedTrackId = nowPlayingTrackId() || track.id;
+        startSorterQueueMonitor();
+
+        // Spotify sometimes exposes its Connect device a little after playback
+        // begins. v0.8.2 waits quietly and arms the queue as soon as that route is
+        // ready instead of flashing a false failure after 2.5 seconds.
+        setStatus(`Playing “${track.title}” — arming sorter queue…`);
+
+        if (sorterQueueArmPromise) {
+            try { await sorterQueueArmPromise; } catch {}
+        }
+
+        sorterQueueArmPromise = (async () => {
+            const ready = await waitForConnectCommandRoute(45000);
+            if (!ready || !sorterSequenceActive) return false;
+
+            // Re-resolve the index in case the player advanced while Spotify was
+            // finishing Connect initialization.
+            const currentId = nowPlayingTrackId() || track.id;
+            const currentIndex = sorterSequence.findIndex(t => t.id === currentId);
+            return await syncSorterQueueAt(currentIndex >= 0 ? currentIndex : index, false);
+        })();
+
+        try {
+            const ok = await sorterQueueArmPromise;
+            if (!ok && sorterSequenceActive) {
+                setStatus(`Playing “${track.title}” — Spotify queue is still initializing…`);
+            }
+            return ok;
+        } finally {
+            sorterQueueArmPromise = null;
+        }
+    }
+
     function nowPlayingMatches(track) {
-        const safe = window.CSS?.escape ? CSS.escape(track.id) : track.id;
-        const widget =
-            document.querySelector('[data-testid="now-playing-widget"]') ||
-            document.querySelector('[data-testid="now-playing-bar"]');
+        if (!track?.id) return false;
+        const detected = nowPlayingTrackId();
+        if (detected) return detected === track.id;
 
-        if (!widget) return false;
+        const scopes = [
+            document.querySelector('[aria-label^="Now playing:"]'),
+            document.querySelector('footer'),
+            document.querySelector('[data-testid="now-playing-widget"]'),
+            document.querySelector('[data-testid="now-playing-bar"]')
+        ].filter(Boolean);
 
-        if (widget.querySelector(`a[href*="/track/${safe}"]`)) return true;
-
-        const txt = (widget.textContent || '').toLowerCase();
-        return Boolean(track.title && txt.includes(track.title.toLowerCase()));
+        return scopes.some(scope => {
+            const txt = (scope.textContent || '').toLowerCase();
+            return Boolean(track.title && txt.includes(track.title.toLowerCase()));
+        });
     }
 
     function trackPagePlayButton(track) {
@@ -1208,6 +1629,8 @@
         );
 
         if (!restored) {
+            // Last-resort SPA nudge. This does not reload the document, so our
+            // sorter overlay remains alive.
             try {
                 history.replaceState(
                     history.state,
@@ -1235,6 +1658,9 @@
         setStatus(`Opening “${track.title}” under the sorter…`);
 
         try {
+            // Spotify is a single-page app. Push the track route underneath our
+            // overlay and fire popstate so Spotify renders the track page without
+            // reloading this userscript.
             history.pushState(history.state, '', targetPath);
             window.dispatchEvent(
                 new PopStateEvent('popstate', { state: history.state })
@@ -1264,10 +1690,13 @@
 
         const label = (playButton.getAttribute('aria-label') || '').toLowerCase();
 
+        // If Spotify already says Pause for this track, it is already playing.
         if (!label.startsWith('pause')) {
             playButton.click();
         }
 
+        // Give Spotify's player command a moment to land before returning the
+        // underlying page to Liked Songs.
         await sleep(900);
 
         const started =
@@ -1281,6 +1710,7 @@
             return true;
         }
 
+        // Spotify sometimes updates the player a beat after the route is restored.
         await sleep(500);
         if (nowPlayingMatches(track)) {
             setStatus(`Playing “${track.title}” — sorter stays open 😎`);
@@ -1307,19 +1737,30 @@
 
         setStatus(`Playing “${track.title}”…`);
 
+        // Fast path: if Spotify already has this row rendered, start it natively.
+        // v0.8 then replaces Spotify's upcoming queue with the current sorted/
+        // filtered view so Next, Previous and natural track-end advance follow it.
         let row = renderedTrackRow(track.id);
         if (row) {
             triggerSpotifyPlay(row);
-            setStatus(`Playing “${track.title}” — sorter stays open 😎`);
+            await sleep(250);
+            await activateSorterSequence(track);
             return;
         }
 
-        await playViaTrackPage(track);
+        // Deep-library tracks still use the proven v0.7 track-page fallback for
+        // the initial start. As soon as Spotify accepts that play command, install
+        // the sorter sequence as the real Connect queue.
+        const started = await playViaTrackPage(track);
+        if (started) {
+            await activateSorterSequence(track);
+        }
     }
 
     function init() {
         injectCss();
         buildUi();
+        startNowPlayingHighlightMonitor();
     }
 
     if (document.readyState === 'loading') {

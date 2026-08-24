@@ -1,0 +1,49 @@
+name: Release Spotify sorter v0.8.8
+
+on:
+  push:
+    paths:
+      - '.release/spotify-v088.gz.b64'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Assemble exact tested userscript
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .release/spotify-v088.gz.b64 | gzip -d > spotify-liked-sorter.user.js
+          echo "486d2f4959f5ada8d1ba91f3ccfc6fb6dacceb3d4273d164ab3a7251b5c7541c  spotify-liked-sorter.user.js" | sha256sum -c -
+
+      - name: Bump portfolio version
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('things-i-made.html')
+          s = p.read_text(encoding='utf-8')
+          old = 'USERSCRIPT • v0.8.7'
+          new = 'USERSCRIPT • v0.8.8'
+          if old not in s:
+              raise SystemExit(f'Expected portfolio marker not found: {old}')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Commit release
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .release/spotify-v088.gz.b64
+          rmdir .release 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add spotify-liked-sorter.user.js things-i-made.html .release || true
+          git commit -m "Release Spotify Liked Songs sorter v0.8.8"
+          git push

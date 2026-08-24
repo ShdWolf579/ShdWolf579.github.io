@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Spotify Web - Liked Songs Sorter
 // @namespace    josh.spotify.liked-sorter
-// @version      0.8.7
+// @version      0.8.8
 // @description  Full-library Spotify Liked Songs sorter/search with sorted-view playback queue support.
 // @match        https://open.spotify.com/*
 // @homepageURL  https://shdwolf579.github.io/things-i-made.html
@@ -31,7 +31,8 @@
     // deployment. Capture one real Play command and clone that exact structure
     // for sorter playback instead of guessing private Connect fields.
     let nativePlayCommandTemplate = null;
-    const NATIVE_PLAY_TEMPLATE_KEY = `${APP_ID}:native-play-template:v1`;
+    let sorterNativePlayDispatchDepth = 0;
+    const NATIVE_PLAY_TEMPLATE_KEY = `${APP_ID}:native-play-template:v2`;
 
     try {
         const cached = sessionStorage.getItem(NATIVE_PLAY_TEMPLATE_KEY);
@@ -91,6 +92,18 @@
     let activeSorterTrackId = '';
     const sorterQueueUidByTrackId = new Map();
 
+    function releaseSorterPlayback(message = 'Sorter playback queue released — Spotify playback took over.') {
+        if (!sorterSequenceActive && !sorterSequence.length) return;
+
+        sorterSequenceActive = false;
+        sorterSequence = [];
+        sorterSequenceIndex = -1;
+        sorterLastObservedTrackId = '';
+        activeSorterTrackId = '';
+        updateNowPlayingHighlight();
+        setStatus(message);
+    }
+
     function captureSpotifyRequest(url, headers, body) {
         try {
             const h = headers instanceof Headers ? headers : new Headers(headers || {});
@@ -128,23 +141,38 @@
                 const route = urlText.match(/\/from\/([^/]+)\/to\/([^/?#]+)/);
                 if (route?.[1]) connectDeviceId = route[1];
 
-                // Keep the full current native Play command template. Spotify now
-                // includes context, play_origin, license, skip_to and logging data;
-                // omitting those fields can make a syntactically valid Connect
-                // request get ignored by the player.
+                // Keep a current native Play command template, but only learn it
+                // from a REAL Spotify Play started on Liked Songs. v0.8.7 learned
+                // every Play command, so playing an album/search/playlist track
+                // could replace the sorter's context and make that outside track
+                // leak back into Next.
                 if (body) {
                     try {
                         const requestPayload = typeof body === 'string' ? JSON.parse(body) : body;
                         const command = requestPayload?.command;
-                        if (command?.endpoint === 'play' && command?.context?.uri) {
-                            nativePlayCommandTemplate = JSON.parse(JSON.stringify(command));
-                            window.__joshNativePlayCommandTemplate = nativePlayCommandTemplate;
-                            try {
-                                sessionStorage.setItem(
-                                    NATIVE_PLAY_TEMPLATE_KEY,
-                                    JSON.stringify(nativePlayCommandTemplate)
-                                );
-                            } catch {}
+                        const isPlay = command?.endpoint === 'play' && command?.context?.uri;
+                        const isSorterReplay = sorterNativePlayDispatchDepth > 0;
+
+                        if (isPlay && !isSorterReplay) {
+                            // A genuine Spotify Play click means the user chose to
+                            // leave sorter playback. Release ownership immediately
+                            // instead of waiting for DOM now-playing detection.
+                            if (sorterSequenceActive) {
+                                releaseSorterPlayback();
+                            }
+
+                            // Only a native Play made from the actual Liked Songs
+                            // route is safe to become the sorter's future context.
+                            if (isLikedSongsPage()) {
+                                nativePlayCommandTemplate = JSON.parse(JSON.stringify(command));
+                                window.__joshNativePlayCommandTemplate = nativePlayCommandTemplate;
+                                try {
+                                    sessionStorage.setItem(
+                                        NATIVE_PLAY_TEMPLATE_KEY,
+                                        JSON.stringify(nativePlayCommandTemplate)
+                                    );
+                                } catch {}
+                            }
                         }
                     } catch {}
                 }
@@ -1498,11 +1526,19 @@
         };
 
         try {
-            const response = await fetch(connectCommandUrl, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ command })
-            });
+            let responsePromise;
+            sorterNativePlayDispatchDepth += 1;
+            try {
+                responsePromise = fetch(connectCommandUrl, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ command })
+                });
+            } finally {
+                sorterNativePlayDispatchDepth = Math.max(0, sorterNativePlayDispatchDepth - 1);
+            }
+
+            const response = await responsePromise;
 
             if (!response.ok) {
                 const detail = (await response.text()).slice(0, 180);
@@ -1582,10 +1618,7 @@
             // If the user deliberately starts something outside the sorter after
             // the initial playback transition, release queue ownership.
             if (Date.now() > sorterSequenceGuardUntil) {
-                sorterSequenceActive = false;
-                sorterSequence = [];
-                sorterSequenceIndex = -1;
-                setStatus('Sorter playback queue released — Spotify playback took over.');
+                releaseSorterPlayback();
             }
         }, 700);
     }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Spotify Web - Liked Songs Sorter
 // @namespace    josh.spotify.liked-sorter
-// @version      0.8.3
+// @version      0.8.7
 // @description  Full-library Spotify Liked Songs sorter/search with sorted-view playback queue support.
 // @match        https://open.spotify.com/*
 // @homepageURL  https://shdwolf579.github.io/things-i-made.html
@@ -26,6 +26,47 @@
 
     let spotifyBearer = '';
     let liveFetchLibraryTracksHash = '';
+
+    // Spotify changed the native web-player Play command shape in the Aug 24
+    // deployment. Capture one real Play command and clone that exact structure
+    // for sorter playback instead of guessing private Connect fields.
+    let nativePlayCommandTemplate = null;
+    const NATIVE_PLAY_TEMPLATE_KEY = `${APP_ID}:native-play-template:v1`;
+
+    try {
+        const cached = sessionStorage.getItem(NATIVE_PLAY_TEMPLATE_KEY);
+        if (cached) nativePlayCommandTemplate = JSON.parse(cached);
+    } catch {}
+
+    // Seed from the exact native Play payload captured from Spotify Web on
+    // 2026-08-24. Any later real Spotify Play request automatically replaces this
+    // template, so the script follows future web-player deployments instead of
+    // freezing this private payload forever.
+    if (!nativePlayCommandTemplate) {
+        nativePlayCommandTemplate = {
+            context: {
+                uri: 'spotify:playlist:37i9dQZF1F5p3rmiWPIYgZ',
+                url: 'context://spotify:playlist:37i9dQZF1F5p3rmiWPIYgZ',
+                metadata: {}
+            },
+            play_origin: {
+                feature_identifier: 'your_library',
+                feature_version: 'web-player_2026-08-24_1787587600631_development',
+                referrer_identifier: 'your_library'
+            },
+            options: {
+                license: 'tft',
+                skip_to: {},
+                player_options_override: {}
+            },
+            logging_params: {
+                page_instance_ids: [],
+                interaction_ids: [],
+                command_id: ''
+            },
+            endpoint: 'play'
+        };
+    }
 
     // Spotify Connect command details are captured from the web player's own
     // playback requests. We reuse that exact active device route/auth when
@@ -86,6 +127,27 @@
 
                 const route = urlText.match(/\/from\/([^/]+)\/to\/([^/?#]+)/);
                 if (route?.[1]) connectDeviceId = route[1];
+
+                // Keep the full current native Play command template. Spotify now
+                // includes context, play_origin, license, skip_to and logging data;
+                // omitting those fields can make a syntactically valid Connect
+                // request get ignored by the player.
+                if (body) {
+                    try {
+                        const requestPayload = typeof body === 'string' ? JSON.parse(body) : body;
+                        const command = requestPayload?.command;
+                        if (command?.endpoint === 'play' && command?.context?.uri) {
+                            nativePlayCommandTemplate = JSON.parse(JSON.stringify(command));
+                            window.__joshNativePlayCommandTemplate = nativePlayCommandTemplate;
+                            try {
+                                sessionStorage.setItem(
+                                    NATIVE_PLAY_TEMPLATE_KEY,
+                                    JSON.stringify(nativePlayCommandTemplate)
+                                );
+                            } catch {}
+                        }
+                    } catch {}
+                }
             }
 
             if (!connectCommandUrl && connectSpClientBase && connectDeviceId && connectCommandAuth) {
@@ -1644,6 +1706,120 @@
         }
     }
 
+    async function playViaCapturedNativeCommand(track) {
+        if (!track?.id) return false;
+
+        const ready = await waitForConnectCommandRoute(5000);
+        if (!ready) {
+            setStatus(
+                'Spotify player connection is not ready yet. Play one song normally in Liked Songs, then try again.',
+                true
+            );
+            return false;
+        }
+
+        nativePlayCommandTemplate =
+            window.__joshNativePlayCommandTemplate || nativePlayCommandTemplate;
+
+        if (!nativePlayCommandTemplate?.context?.uri) {
+            setStatus(
+                'I need one current Spotify Play command first: play any song normally in Liked Songs once, then use Liked Sort.',
+                true
+            );
+            return false;
+        }
+
+        const headers = {
+            'Authorization': connectCommandAuth,
+            'Accept': '*/*',
+            'Content-Type': 'application/json;charset=UTF-8',
+            'app-platform': 'WebPlayer'
+        };
+        if (connectClientToken) headers['Client-Token'] = connectClientToken;
+
+        const command = JSON.parse(JSON.stringify(nativePlayCommandTemplate));
+        const uri = `spotify:track:${track.id}`;
+
+        command.endpoint = 'play';
+        command.context = command.context || {};
+        command.context.metadata = command.context.metadata || {};
+        command.play_origin = command.play_origin || {};
+        command.play_origin.feature_identifier =
+            command.play_origin.feature_identifier || 'your_library';
+        command.play_origin.referrer_identifier =
+            command.play_origin.referrer_identifier || 'your_library';
+
+        command.options = command.options || {};
+        command.options.license = command.options.license || 'tft';
+        command.options.player_options_override =
+            command.options.player_options_override || {};
+
+        // Native Spotify currently sends track_uid + track_index + track_uri.
+        // The uid is context-internal and cannot be safely invented for another
+        // track, so replace the target with the stable URI and the original
+        // Liked Songs index that we already retain from the library scan.
+        const skipTo = { track_uri: uri };
+        const originalIndex = Number(track.rowIndex || 0) - 2;
+        if (Number.isFinite(originalIndex) && originalIndex >= 0) {
+            skipTo.track_index = originalIndex;
+        }
+        command.options.skip_to = skipTo;
+
+        const oldLogging = command.logging_params || {};
+        command.logging_params = {
+            ...oldLogging,
+            command_id: randomHex32(),
+            page_instance_ids: Array.isArray(oldLogging.page_instance_ids)
+                ? oldLogging.page_instance_ids
+                : [],
+            interaction_ids: [
+                (crypto.randomUUID ? crypto.randomUUID() : randomHex32())
+            ]
+        };
+
+        // nowPlayingTrackId() deliberately keeps the last sorter id while Spotify's
+        // DOM is transitioning. Clear it before verification so an old highlight
+        // cannot make a failed Play request look successful.
+        activeSorterTrackId = '';
+
+        try {
+            const response = await fetch(connectCommandUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ command })
+            });
+
+            if (!response.ok) {
+                const detail = (await response.text()).slice(0, 220);
+                setStatus(
+                    `Spotify rejected the native Play command (${response.status})${detail ? ` — ${detail}` : ''}`,
+                    true
+                );
+                return false;
+            }
+
+            const switched = await waitUntil(() => {
+                const detected = nowPlayingTrackId();
+                return detected === track.id;
+            }, 4000, 100);
+
+            if (!switched) {
+                setStatus(
+                    `Spotify accepted Play for “${track.title}”, but the player did not switch to it.`,
+                    true
+                );
+                return false;
+            }
+
+            setStatus(`Playing “${track.title}” — sorter stays open 😎`);
+            return true;
+        } catch (err) {
+            console.warn('[Liked Sort] Native Spotify Play request failed:', err);
+            setStatus(`Spotify Play request failed: ${err?.message || err}`, true);
+            return false;
+        }
+    }
+
     async function playViaTrackPage(track) {
         if (nowPlayingMatches(track)) {
             setStatus(`“${track.title}” is already playing 😎`);
@@ -1737,23 +1913,26 @@
 
         setStatus(`Playing “${track.title}”…`);
 
-        // Fast path: if Spotify already has this row rendered, start it natively.
-        // v0.8 then replaces Spotify's upcoming queue with the current sorted/
-        // filtered view so Next, Previous and natural track-end advance follow it.
-        let row = renderedTrackRow(track.id);
-        if (row) {
-            triggerSpotifyPlay(row);
-            await sleep(250);
+        // Spotify's Aug 24 web-player deployment changed the private native Play
+        // payload. Clone a real current Play command captured from Spotify itself,
+        // replace only the target track, then keep v0.8.3's proven sorter queue.
+        const startedNative = await playViaCapturedNativeCommand(track);
+        if (startedNative) {
             await activateSorterSequence(track);
             return;
         }
 
-        // Deep-library tracks still use the proven v0.7 track-page fallback for
-        // the initial start. As soon as Spotify accepts that play command, install
-        // the sorter sequence as the real Connect queue.
-        const started = await playViaTrackPage(track);
-        if (started) {
-            await activateSorterSequence(track);
+        // If no native template has been captured yet, do not spray more guessed
+        // private commands. A visible row can still receive the user's immediate
+        // click gesture; deep-library playback waits until Spotify has given us a
+        // real native template from one normal Liked Songs play.
+        let row = renderedTrackRow(track.id);
+        if (row && !nativePlayCommandTemplate) {
+            triggerSpotifyPlay(row);
+            await sleep(400);
+            if (nowPlayingMatches(track)) {
+                await activateSorterSequence(track);
+            }
         }
     }
 

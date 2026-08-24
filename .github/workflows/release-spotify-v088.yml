@@ -3,17 +3,20 @@ name: Release Spotify sorter v0.8.8
 on:
   push:
     paths:
-      - '.release/spotify-v088.gz.b64'
+      - '.github/workflows/release-spotify-v088.yml'
 
 permissions:
   contents: write
 
 jobs:
   release:
+    if: contains(github.event.head_commit.message, 'Run Spotify v0.8.8 release')
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Check out main
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Assemble exact tested userscript
         shell: bash
@@ -21,6 +24,7 @@ jobs:
           set -euo pipefail
           base64 -d .release/spotify-v088.gz.b64 | gzip -d > spotify-liked-sorter.user.js
           echo "486d2f4959f5ada8d1ba91f3ccfc6fb6dacceb3d4273d164ab3a7251b5c7541c  spotify-liked-sorter.user.js" | sha256sum -c -
+          grep -Fq '// @version      0.8.8' spotify-liked-sorter.user.js
 
       - name: Bump portfolio version
         shell: bash
@@ -36,14 +40,14 @@ jobs:
           p.write_text(s.replace(old, new, 1), encoding='utf-8')
           PY
 
-      - name: Commit release
+      - name: Remove staging payload and publish
         shell: bash
         run: |
           set -euo pipefail
           rm -f .release/spotify-v088.gz.b64
           rmdir .release 2>/dev/null || true
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add spotify-liked-sorter.user.js things-i-made.html .release || true
-          git commit -m "Release Spotify Liked Songs sorter v0.8.8"
-          git push
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Release Spotify Liked Songs sorter v0.8.8'
+          git push origin HEAD:main

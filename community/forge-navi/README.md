@@ -1,4 +1,4 @@
-# Forge-Navi + Token-Navi Community Demo
+# Forge-Navi + Token-Navi Community
 
 A sanitized, runnable public demonstration of the workflow behind Joshua Phillips' private Forge-Navi and Token-Navi tooling.
 
@@ -24,7 +24,21 @@ By default it creates Forge-Navi-Community in the current directory. You can cho
 .\install.ps1 -Destination "D:\Tools\Forge-Navi-Community"
 ~~~
 
-## 60-second demo
+## Desktop app
+
+After installation, double-click **Launch Forge-Navi.cmd** or the **Forge-Navi Community** desktop shortcut.
+
+The desktop beta lets you:
+
+- choose a Forge `custom` folder or a project folder containing `custom`;
+- run an audit and see RED / YELLOW / GREEN results;
+- double-click or open the script behind a finding;
+- generate the Token-Navi handoff;
+- build a ZIP only when structural blockers are gone.
+
+The CLI remains available underneath for automation and advanced users.
+
+## 60-second CLI demo
 
 From the installed folder:
 
@@ -99,6 +113,6 @@ The production rule is simple: prove the content works; do not merely prove that
 
 ## Status
 
-Community Demo v0.1.0 — portfolio / educational release.
+Community v0.2.0 — desktop beta + CLI.
 
 Forge and Magic: The Gathering are third-party projects/properties. This demo is unofficial and is not affiliated with or endorsed by their respective maintainers or rights holders.

@@ -18,7 +18,12 @@ from pathlib import Path
 from typing import Iterable
 
 from forge_navi_scripter import CardSpec, compile_card, script_relative_path
-from forge_navi_validator import is_errata_green, is_generated, validate_generated_script
+from forge_navi_validator import (
+    is_errata_green,
+    is_generated,
+    validate_generated_script,
+    validate_known_api_heads,
+)
 
 SVAR_REF_RE = re.compile(r"(?:Execute\$|SubAbility\$|References\$)\s*([A-Za-z0-9_]+)")
 TOKEN_SCRIPT_RE = re.compile(r"TokenScript\$\s*([A-Za-z0-9_.-]+)")
@@ -178,6 +183,8 @@ def audit(root: Path) -> tuple[list[Finding], dict]:
         generated_strict = is_generated(raw_text)
         if is_errata_green(raw_text):
             errata_green_files.add(rel)
+        for message in validate_known_api_heads(fields):
+            findings.append(Finding("ERROR", rel, message))
         for message in validate_generated_script(fields, raw_text):
             findings.append(Finding("ERROR", rel, message))
         if REVIEW_MARKER_RE.search(raw_text) and not any(

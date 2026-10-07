@@ -96,19 +96,19 @@ def _parse_effect(clause: str, token_script: str) -> Effect | None:
     text = clause.strip().rstrip(".")
     low = text.casefold()
 
-    m = re.fullmatch(r"draw (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d+) cards?", low)
+    m = re.fullmatch(r"draw (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards?", low)
     if m:
         return Effect("Draw", [("NumCards", _num(m.group(1)))], "DRAW_EFFECT")
 
-    m = re.fullmatch(r"you gain (one|two|three|four|five|six|seven|eight|nine|ten|\\d+) life", low)
+    m = re.fullmatch(r"you gain (one|two|three|four|five|six|seven|eight|nine|ten|\d+) life", low)
     if m:
         return Effect("GainLife", [("Defined", "You"), ("LifeAmount", _num(m.group(1)))], "GAIN_LIFE_EFFECT")
 
-    m = re.fullmatch(r"you mill (one|two|three|four|five|six|seven|eight|nine|ten|\\d+) cards?", low)
+    m = re.fullmatch(r"you mill (one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards?", low)
     if m:
         return Effect("Mill", [("Defined", "You"), ("NumCards", _num(m.group(1)))], "MILL_EFFECT")
 
-    m = re.fullmatch(r"target player mills? (one|two|three|four|five|six|seven|eight|nine|ten|\\d+) cards?", low)
+    m = re.fullmatch(r"target player mills? (one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards?", low)
     if m:
         return Effect("Mill", [("ValidTgts", "Player"), ("NumCards", _num(m.group(1)))], "MILL_EFFECT")
 
@@ -122,7 +122,7 @@ def _parse_effect(clause: str, token_script: str) -> Effect | None:
         }
         return Effect("Destroy", [("ValidTgts", selectors[m.group(1)])], "DESTROY_EFFECT")
 
-    m = re.fullmatch(r"target player discards? (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d+) cards?", low)
+    m = re.fullmatch(r"target player discards? (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards?", low)
     if m:
         return Effect(
             "Discard",
@@ -131,7 +131,7 @@ def _parse_effect(clause: str, token_script: str) -> Effect | None:
         )
 
     m = re.fullmatch(
-        r"put (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d+) \\+1/\\+1 counters? on target creature",
+        r"put (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) \+1/\+1 counters? on target creature",
         low,
     )
     if m:
@@ -141,12 +141,12 @@ def _parse_effect(clause: str, token_script: str) -> Effect | None:
             "PUT_COUNTER_EFFECT",
         )
 
-    m = re.fullmatch(r"scry (one|two|three|four|five|six|seven|eight|nine|ten|\\d+)", low)
+    m = re.fullmatch(r"scry (one|two|three|four|five|six|seven|eight|nine|ten|\d+)", low)
     if m:
         return Effect("Scry", [("ScryNum", _num(m.group(1)))], "SCRY_EFFECT")
 
     m = re.fullmatch(
-        r"create (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d+) .+ tokens?",
+        r"create (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) .+ tokens?",
         low,
     )
     if m and token_script.strip():
@@ -160,7 +160,7 @@ def _parse_effect(clause: str, token_script: str) -> Effect | None:
 
 
 def _split_effects(text: str) -> list[str]:
-    return [x.strip() for x in re.split(r"(?<=[.!?])\\s+", text.strip()) if x.strip()]
+    return [x.strip() for x in re.split(r"(?<=[.!?])\s+", text.strip()) if x.strip()]
 
 
 def _render_chain(effects: list[Effect], prefix: str, top_head: str, description: str | None = None) -> list[str]:
@@ -221,7 +221,7 @@ def _compile_trigger(sentence: str, token_script: str, trigger_index: int):
     raw = sentence.strip().rstrip(".")
     prefix = f"TrigEffect{trigger_index}"
 
-    m = re.fullmatch(r"at the beginning of your upkeep,\\s*(.+)", raw, flags=re.I)
+    m = re.fullmatch(r"at the beginning of your upkeep,\s*(.+)", raw, flags=re.I)
     if m:
         payload, patterns, review = _trigger_payload(m.group(1), token_script, prefix)
         if not payload:
@@ -231,7 +231,7 @@ def _compile_trigger(sentence: str, token_script: str, trigger_index: int):
         )
         return [line, *payload], ["PHASE_TRIGGER", *patterns], review
 
-    m = re.fullmatch(r"at the beginning of your end step,\\s*(.+)", raw, flags=re.I)
+    m = re.fullmatch(r"at the beginning of your end step,\s*(.+)", raw, flags=re.I)
     if m:
         payload, patterns, review = _trigger_payload(m.group(1), token_script, prefix)
         if not payload:
@@ -241,7 +241,7 @@ def _compile_trigger(sentence: str, token_script: str, trigger_index: int):
         )
         return [line, *payload], ["PHASE_TRIGGER", *patterns], review
 
-    m = re.fullmatch(r"whenever you cast an instant or sorcery spell,\\s*(.+)", raw, flags=re.I)
+    m = re.fullmatch(r"whenever you cast an instant or sorcery spell,\s*(.+)", raw, flags=re.I)
     if m:
         payload, patterns, review = _trigger_payload(m.group(1), token_script, prefix)
         if not payload:
@@ -281,7 +281,7 @@ def compile_card(spec: CardSpec) -> Draft:
     if spec.pt.strip():
         lines.append(f"PT:{spec.pt.strip()}")
 
-    for raw_kw in re.split(r"[,;\\n]+", spec.keywords):
+    for raw_kw in re.split(r"[,;\n]+", spec.keywords):
         kw = raw_kw.strip()
         if not kw:
             continue
@@ -294,7 +294,7 @@ def compile_card(spec: CardSpec) -> Draft:
 
     ability_lines: list[str] = []
     if oracle:
-        is_spell = bool(re.search(r"\\b(?:Instant|Sorcery)\\b", types, flags=re.I))
+        is_spell = bool(re.search(r"\b(?:Instant|Sorcery)\b", types, flags=re.I))
         if is_spell:
             compiled, used, unresolved = _compile_simple_spell(oracle, spec.token_script)
             ability_lines.extend(compiled)

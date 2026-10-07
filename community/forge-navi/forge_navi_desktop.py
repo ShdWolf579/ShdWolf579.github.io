@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Forge-Navi Community Desktop v0.3-dev."""
+"""Forge-Navi Community Desktop v0.4-dev."""
 from __future__ import annotations
 
 import json
@@ -43,6 +43,9 @@ class ForgeNaviDesktop(tk.Tk):
         self.minsize(920, 620)
 
         self.source_path = tk.StringVar()
+        self.source_display_text = tk.StringVar(value="None")
+        self.working_copy_text = tk.StringVar(value="None")
+        self.zip_state_text = tk.StringVar(value="N/A")
         self.status_text = tk.StringVar(value="Choose a Forge folder or ZIP, or load the included demo.")
         self.count_text = tk.StringVar(value="No audit run yet.")
         self.workspace_summary_text = tk.StringVar(value="No set workspace loaded yet.")
@@ -148,11 +151,21 @@ class ForgeNaviDesktop(tk.Tk):
 
     def _build_audit_tab(self) -> None:
         picker = ttk.Frame(self.audit_tab)
-        picker.pack(fill="x", pady=(0, 10))
-        ttk.Entry(picker, textvariable=self.source_path).pack(side="left", fill="x", expand=True)
+        picker.pack(fill="x", pady=(0, 8))
+        ttk.Entry(picker, textvariable=self.source_path, state="readonly").pack(side="left", fill="x", expand=True)
         ttk.Button(picker, text="Choose Folder", command=self.choose_folder).pack(side="left", padx=(8, 0))
         ttk.Button(picker, text="Open ZIP", command=self.choose_zip).pack(side="left", padx=(8, 0))
         ttk.Button(picker, text="Load Demo", command=self.load_demo).pack(side="left", padx=(8, 0))
+
+        project_info = ttk.LabelFrame(self.audit_tab, text="Project Source", padding=8)
+        project_info.pack(fill="x", pady=(0, 10))
+        project_info.columnconfigure(1, weight=1)
+        ttk.Label(project_info, text="Source:").grid(row=0, column=0, sticky="nw", padx=(0, 8))
+        ttk.Label(project_info, textvariable=self.source_display_text, wraplength=920).grid(row=0, column=1, sticky="w")
+        ttk.Label(project_info, text="Working Copy:").grid(row=1, column=0, sticky="nw", padx=(0, 8), pady=(3, 0))
+        ttk.Label(project_info, textvariable=self.working_copy_text, wraplength=920).grid(row=1, column=1, sticky="w", pady=(3, 0))
+        ttk.Label(project_info, text="ZIP State:").grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(3, 0))
+        ttk.Label(project_info, textvariable=self.zip_state_text).grid(row=2, column=1, sticky="w", pady=(3, 0))
 
         actions = ttk.Frame(self.audit_tab)
         actions.pack(fill="x", pady=(0, 12))
@@ -270,6 +283,11 @@ class ForgeNaviDesktop(tk.Tk):
         self.workspace_root = workspace.discover_workspace_root(workspace_root)
         self.active_root = workspace.discover_custom_root(self.workspace_root)
         self.source_path.set(source_label)
+        self.working_copy_text.set(str(self.workspace_root))
+        if self.loaded_zip is not None:
+            self.source_display_text.set(f"ZIP: {self.loaded_zip}")
+        else:
+            self.source_display_text.set(f"Folder: {source_label}")
         self.status_text.set(
             f"Workspace: {self.workspace_root} • custom root: {self.active_root}"
         )
@@ -281,6 +299,7 @@ class ForgeNaviDesktop(tk.Tk):
             self.zip_dirty = False
             self.zip_baseline_snapshot = None
             self.zip_backup_path = None
+            self.zip_state_text.set("N/A (folder project)")
             workspace_root = workspace.discover_workspace_root(Path(chosen))
             self.set_workspace(workspace_root, chosen)
             self.run_audit()
@@ -304,9 +323,12 @@ class ForgeNaviDesktop(tk.Tk):
         self.loaded_zip = Path(chosen).resolve()
         self.zip_dirty = False
         self.zip_backup_path = None
-        self.set_workspace(workspace_root, chosen)
+        self.set_workspace(workspace_root, str(self.loaded_zip))
         self.active_root = root
         self.zip_baseline_snapshot = workspace.workspace_snapshot(self.workspace_root)
+        self.source_display_text.set(f"ZIP: {self.loaded_zip}")
+        self.working_copy_text.set(str(self.workspace_root))
+        self.zip_state_text.set("SAVED (opened archive)")
         self.status_text.set(
             f"Whole-set ZIP loaded into temporary workspace: {workspace_root}. "
             "Edits are tracked; use Save ZIP to update the archive or Save ZIP As... for a copy."
@@ -318,6 +340,7 @@ class ForgeNaviDesktop(tk.Tk):
         self.zip_dirty = False
         self.zip_baseline_snapshot = None
         self.zip_backup_path = None
+        self.zip_state_text.set("N/A (built-in demo)")
         demo = resource_path("demo")
         self.set_workspace(demo, "Built-in demo")
         self.run_audit()
@@ -325,6 +348,14 @@ class ForgeNaviDesktop(tk.Tk):
     def current_root(self) -> Path | None:
         if self.active_root and self.active_root.exists():
             return self.active_root
+        if self.loaded_zip is not None:
+            self.zip_state_text.set("VERIFY FAILED / working copy missing")
+            messagebox.showerror(
+                APP_TITLE,
+                "The ZIP working copy is missing. Navi will not silently switch to another folder. "
+                "Reopen the source ZIP."
+            )
+            return None
         raw = self.source_path.get().strip().strip('"')
         if raw and Path(raw).is_dir():
             self.set_workspace(Path(raw), raw)
@@ -394,7 +425,13 @@ class ForgeNaviDesktop(tk.Tk):
             status_message = "Packaging is blocked until the red findings are resolved."
 
         if self.loaded_zip is not None:
-            status_message += " ZIP: DIRTY (unsaved changes)." if self.zip_dirty else " ZIP: SAVED."
+            if self.zip_dirty:
+                self.zip_state_text.set("DIRTY (unsaved changes)")
+                status_message += " ZIP: DIRTY (unsaved changes)."
+            else:
+                if not self.zip_state_text.get().startswith("SAVED & VERIFIED"):
+                    self.zip_state_text.set("SAVED (opened archive)")
+                status_message += f" ZIP: {self.zip_state_text.get()}."
         self.status_text.set(status_message)
 
         state_dir = root / ".forge-navi"
@@ -678,31 +715,67 @@ class ForgeNaviDesktop(tk.Tk):
                 "This project was opened as a folder. Changes are already saved directly to disk."
             )
             return
-
         if self.workspace_root is None:
             messagebox.showerror(APP_TITLE, "No whole-set workspace is active.")
             return
 
+        target = self.loaded_zip
+        temp_target = target.with_name(f".{target.name}.forge-navi.tmp")
+        expected_snapshot = workspace.workspace_snapshot(self.workspace_root)
+
         try:
-            backup = self._ensure_zip_backup()
-            target = self.loaded_zip
-            temp_target = target.with_name(f".{target.name}.forge-navi.tmp")
+            if temp_target.exists():
+                temp_target.unlink()
+
             workspace.save_workspace_zip(self.workspace_root, temp_target)
+            ok, detail = workspace.compare_snapshots(
+                expected_snapshot,
+                workspace.zip_snapshot(temp_target),
+            )
+            if not ok:
+                self.zip_state_text.set("VERIFY FAILED (pre-save)")
+                raise RuntimeError(f"temporary ZIP does not match workspace: {detail}")
+
+            backup = self._ensure_zip_backup()
             os.replace(temp_target, target)
-            self.zip_baseline_snapshot = workspace.workspace_snapshot(self.workspace_root)
+
+            ok, detail = workspace.compare_snapshots(
+                expected_snapshot,
+                workspace.zip_snapshot(target),
+            )
+            if not ok:
+                self.zip_state_text.set("VERIFY FAILED (post-save)")
+                if backup is not None and backup.exists():
+                    shutil.copy2(backup, target)
+                    raise RuntimeError(
+                        f"final ZIP verification failed: {detail}. Original ZIP was restored from backup."
+                    )
+                raise RuntimeError(
+                    f"final ZIP verification failed: {detail}. Backup was unavailable."
+                )
+
+            self.zip_baseline_snapshot = expected_snapshot
             self.zip_dirty = False
+            self.source_path.set(str(target))
+            self.source_display_text.set(f"ZIP: {target}")
+            self.working_copy_text.set(str(self.workspace_root))
+            self.zip_state_text.set(f"SAVED & VERIFIED ({detail})")
         except Exception as exc:
             try:
-                if 'temp_target' in locals() and temp_target.exists():
+                if temp_target.exists():
                     temp_target.unlink()
             except OSError:
                 pass
-            messagebox.showerror(APP_TITLE, f"Could not save ZIP:\n{exc}")
+            self.zip_dirty = True
+            messagebox.showerror(APP_TITLE, f"Could not safely save ZIP:\n{exc}")
             return
 
         backup_text = f"\nOriginal backup: {backup}" if backup else ""
-        self.status_text.set(f"ZIP: SAVED • {target}")
-        messagebox.showinfo(APP_TITLE, f"ZIP updated:\n{target}{backup_text}")
+        self.status_text.set(f"ZIP: SAVED & VERIFIED • {target}")
+        messagebox.showinfo(
+            APP_TITLE,
+            f"ZIP saved and verified against the working copy:\n{target}{backup_text}"
+        )
 
     def save_zip_as(self) -> None:
         root = self.current_root()
@@ -713,6 +786,9 @@ class ForgeNaviDesktop(tk.Tk):
                 APP_TITLE,
                 "This project was opened as a folder. Files are already being written directly to disk."
             )
+            return
+        if self.workspace_root is None:
+            messagebox.showerror(APP_TITLE, "No whole-set workspace is active.")
             return
 
         suggested = f"{self.loaded_zip.stem}-edited.zip"
@@ -726,21 +802,48 @@ class ForgeNaviDesktop(tk.Tk):
         if not out:
             return
 
+        target = Path(out).resolve()
+        temp_target = target.with_name(f".{target.name}.forge-navi.tmp")
+        expected_snapshot = workspace.workspace_snapshot(self.workspace_root)
+
         try:
-            whole_root = self.workspace_root or root.parent
-            workspace.save_workspace_zip(whole_root, Path(out))
+            if temp_target.exists():
+                temp_target.unlink()
+            workspace.save_workspace_zip(self.workspace_root, temp_target)
+            ok, detail = workspace.compare_snapshots(
+                expected_snapshot,
+                workspace.zip_snapshot(temp_target),
+            )
+            if not ok:
+                raise RuntimeError(f"temporary ZIP does not match workspace: {detail}")
+
+            os.replace(temp_target, target)
+            ok, detail = workspace.compare_snapshots(
+                expected_snapshot,
+                workspace.zip_snapshot(target),
+            )
+            if not ok:
+                raise RuntimeError(f"saved ZIP failed final verification: {detail}")
         except Exception as exc:
-            messagebox.showerror(APP_TITLE, f"Could not save ZIP:\n{exc}")
+            try:
+                if temp_target.exists():
+                    temp_target.unlink()
+            except OSError:
+                pass
+            self.zip_state_text.set("VERIFY FAILED")
+            messagebox.showerror(APP_TITLE, f"Could not safely save ZIP copy:\n{exc}")
             return
 
-        self.loaded_zip = Path(out).resolve()
+        self.loaded_zip = target
         self.zip_dirty = False
         self.zip_backup_path = None
-        if self.workspace_root is not None:
-            self.zip_baseline_snapshot = workspace.workspace_snapshot(self.workspace_root)
-        self.source_path.set(str(self.loaded_zip))
-        self.status_text.set(f"ZIP saved: {self.loaded_zip}")
-        messagebox.showinfo(APP_TITLE, f"Edited ZIP saved:\n{self.loaded_zip}")
+        self.zip_baseline_snapshot = expected_snapshot
+        self.source_path.set(str(target))
+        self.source_display_text.set(f"ZIP: {target}")
+        self.working_copy_text.set(str(self.workspace_root))
+        self.zip_state_text.set(f"SAVED & VERIFIED ({detail})")
+        self.status_text.set(f"ZIP: SAVED & VERIFIED • {target}")
+        messagebox.showinfo(APP_TITLE, f"Edited ZIP saved and verified:\n{target}")
 
     def open_root(self) -> None:
         root = self.current_root()

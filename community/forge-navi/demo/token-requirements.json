@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "generator": "Forge-Navi Community",
+  "tokens": [
+    {
+      "id": "demo_scout",
+      "display_name": "Demo Scout",
+      "source_card": "Demo Recruiter",
+      "image": "assets/demo_scout.png",
+      "status": "REQUIRED"
+    }
+  ]
+}

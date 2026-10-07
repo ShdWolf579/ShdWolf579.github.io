@@ -18,11 +18,17 @@ Download install.ps1 from this folder and run:
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ~~~
 
-By default it creates Forge-Navi-Community in the current directory. You can choose another destination:
+By default it installs the standalone EXE under `%LOCALAPPDATA%\\Forge-Navi-Community`, verifies its SHA-256 hash, and creates a desktop shortcut. You can choose another destination:
 
 ~~~powershell
 .\install.ps1 -Destination "D:\Tools\Forge-Navi-Community"
 ~~~
+
+### Direct EXE
+
+If you do not want to use the installer, download `dist/Forge-Navi-Community.exe` and run it directly. The EXE is built automatically on Windows with PyInstaller and includes the Python runtime and Tk GUI dependencies.
+
+Because this beta is not code-signed yet, Windows SmartScreen may show an unknown-publisher warning.
 
 ## Desktop app
 
@@ -113,6 +119,6 @@ The production rule is simple: prove the content works; do not merely prove that
 
 ## Status
 
-Community v0.2.0 — desktop beta + CLI.
+Community v0.2.1 — standalone Windows desktop beta + optional CLI.
 
 Forge and Magic: The Gathering are third-party projects/properties. This demo is unofficial and is not affiliated with or endorsed by their respective maintainers or rights holders.

@@ -13,10 +13,11 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 import forge_navi_community as core
+import forge_navi_workspace as workspace
 from forge_navi_scripter import CardSpec, compile_card, script_relative_path
 
 APP_TITLE = "Forge-Navi Community"
-APP_VERSION = "0.3-dev"
+APP_VERSION = "0.4-dev"
 
 
 def resource_path(relative: str) -> Path:
@@ -44,8 +45,11 @@ class ForgeNaviDesktop(tk.Tk):
         self.source_path = tk.StringVar()
         self.status_text = tk.StringVar(value="Choose a Forge folder or ZIP, or load the included demo.")
         self.count_text = tk.StringVar(value="No audit run yet.")
+        self.workspace_summary_text = tk.StringVar(value="No set workspace loaded yet.")
         self.last_findings = []
         self.last_summary = {}
+        self.inventory = None
+        self.workspace_root: Path | None = None
         self.active_root: Path | None = None
         self.temp_dirs: list[Path] = []
         self.loaded_zip: Path | None = None
@@ -65,16 +69,80 @@ class ForgeNaviDesktop(tk.Tk):
             text="Audit, script, token handoff, and gated packaging for Forge custom content.",
         ).pack(anchor="w", pady=(0, 10))
 
-        notebook = ttk.Notebook(outer)
-        notebook.pack(fill="both", expand=True)
+        self.notebook = ttk.Notebook(outer)
+        self.notebook.pack(fill="both", expand=True)
 
-        self.audit_tab = ttk.Frame(notebook, padding=10)
-        self.script_tab = ttk.Frame(notebook, padding=10)
-        notebook.add(self.audit_tab, text="Audit & Package")
-        notebook.add(self.script_tab, text="Script Card")
+        self.workspace_tab = ttk.Frame(self.notebook, padding=10)
+        self.audit_tab = ttk.Frame(self.notebook, padding=10)
+        self.script_tab = ttk.Frame(self.notebook, padding=10)
+        self.notebook.add(self.workspace_tab, text="Set Workspace")
+        self.notebook.add(self.audit_tab, text="Audit & Package")
+        self.notebook.add(self.script_tab, text="Script Card")
 
+        self._build_workspace_tab()
         self._build_audit_tab()
         self._build_script_tab()
+
+    def _build_workspace_tab(self) -> None:
+        toolbar = ttk.Frame(self.workspace_tab)
+        toolbar.pack(fill="x", pady=(0, 8))
+        ttk.Button(toolbar, text="Refresh Workspace", command=self.refresh_workspace).pack(side="left")
+        ttk.Button(toolbar, text="Open Workspace Folder", command=self.open_root).pack(side="left", padx=(8, 0))
+        ttk.Label(toolbar, textvariable=self.workspace_summary_text, wraplength=820).pack(
+            side="left", padx=(14, 0)
+        )
+
+        frame = ttk.LabelFrame(self.workspace_tab, text="Cards", padding=8)
+        frame.pack(fill="both", expand=True)
+
+        self.workspace_tree = ttk.Treeview(
+            frame,
+            columns=("state", "name", "script", "art", "tokens"),
+            show="headings",
+            selectmode="browse",
+        )
+        self.workspace_tree.heading("state", text="State")
+        self.workspace_tree.heading("name", text="Card")
+        self.workspace_tree.heading("script", text="Script")
+        self.workspace_tree.heading("art", text="Card Art")
+        self.workspace_tree.heading("tokens", text="Tokens")
+        self.workspace_tree.column("state", width=105, anchor="center", stretch=False)
+        self.workspace_tree.column("name", width=250, anchor="w")
+        self.workspace_tree.column("script", width=340, anchor="w")
+        self.workspace_tree.column("art", width=120, anchor="center", stretch=False)
+        self.workspace_tree.column("tokens", width=120, anchor="center", stretch=False)
+        self.workspace_tree.pack(side="left", fill="both", expand=True)
+
+        scroll = ttk.Scrollbar(frame, orient="vertical", command=self.workspace_tree.yview)
+        scroll.pack(side="right", fill="y")
+        self.workspace_tree.configure(yscrollcommand=scroll.set)
+
+        for state, color in (
+            ("RED", "#b00020"),
+            ("YELLOW", "#9a6700"),
+            ("GREEN", "#137333"),
+            ("ERRATA-GREEN", "#137333"),
+            ("UNKNOWN", "#666666"),
+        ):
+            self.workspace_tree.tag_configure(state, foreground=color)
+
+        self.workspace_tree.bind("<Double-1>", lambda _event: self.open_workspace_script())
+        self.workspace_tree.bind("<Button-3>", self.show_workspace_context)
+
+        self.workspace_menu = tk.Menu(self, tearoff=0)
+        self.workspace_menu.add_command(label="Open Script", command=self.open_workspace_script)
+        self.workspace_menu.add_command(label="Open Card Art", command=self.open_workspace_art)
+        self.workspace_menu.add_command(label="Load into Script Card", command=self.load_workspace_card)
+        self.workspace_menu.add_separator()
+        self.workspace_menu.add_command(label="Fix Selected (Safe)", command=self.fix_workspace_selected)
+
+        ttk.Label(
+            self.workspace_tab,
+            text=(
+                "One row = one card record. Script, card art, token dependencies, and audit state "
+                "are bound together in this workspace."
+            ),
+        ).pack(anchor="w", pady=(8, 0))
 
     def _build_audit_tab(self) -> None:
         picker = ttk.Frame(self.audit_tab)
@@ -119,14 +187,20 @@ class ForgeNaviDesktop(tk.Tk):
         scroll.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=scroll.set)
         self.tree.bind("<Double-1>", lambda _event: self.open_selected())
+        self.tree.bind("<Button-3>", self.show_audit_context)
 
         self.tree.tag_configure("RED", foreground="#b00020")
         self.tree.tag_configure("YELLOW", foreground="#9a6700")
         self.tree.tag_configure("GREEN", foreground="#137333")
+        self.tree.tag_configure("ERRATA-GREEN", foreground="#137333")
+
+        self.audit_menu = tk.Menu(self, tearoff=0)
+        self.audit_menu.add_command(label="Fix Selected (Safe)", command=self.fix_selected_safe)
+        self.audit_menu.add_command(label="Open Script", command=self.open_selected)
 
         ttk.Label(
             self.audit_tab,
-            text="RED = structural error • YELLOW = review recommended • GREEN = no structural findings",
+            text="RED = error • YELLOW = review • GREEN = exact clean • ERRATA-GREEN = documented clean errata",
         ).pack(anchor="w", pady=(8, 0))
 
     def _build_script_tab(self) -> None:
@@ -189,18 +263,21 @@ class ForgeNaviDesktop(tk.Tk):
             ),
         ).pack(anchor="w", pady=(8, 0))
 
-    def set_active_root(self, root: Path, source_label: str) -> None:
-        self.active_root = core.normalize_root(root)
+    def set_workspace(self, workspace_root: Path, source_label: str) -> None:
+        self.workspace_root = workspace.discover_workspace_root(workspace_root)
+        self.active_root = workspace.discover_custom_root(self.workspace_root)
         self.source_path.set(source_label)
-        self.status_text.set(f"Working root: {self.active_root}")
+        self.status_text.set(
+            f"Workspace: {self.workspace_root} • custom root: {self.active_root}"
+        )
 
     def choose_folder(self) -> None:
         chosen = filedialog.askdirectory(title="Choose Forge custom folder or project folder")
         if chosen:
             self.loaded_zip = None
             self.zip_dirty = False
-            root = core.normalize_root(Path(chosen))
-            self.set_active_root(root, chosen)
+            workspace_root = workspace.discover_workspace_root(Path(chosen))
+            self.set_workspace(workspace_root, chosen)
             self.run_audit()
 
     def choose_zip(self) -> None:
@@ -213,7 +290,7 @@ class ForgeNaviDesktop(tk.Tk):
         temp = Path(tempfile.mkdtemp(prefix="forge-navi-zip-"))
         self.temp_dirs.append(temp)
         try:
-            root = core.safe_extract_zip(Path(chosen), temp)
+            workspace_root, root = workspace.safe_extract_workspace_zip(Path(chosen), temp)
         except Exception as exc:
             shutil.rmtree(temp, ignore_errors=True)
             self.temp_dirs.remove(temp)
@@ -221,9 +298,10 @@ class ForgeNaviDesktop(tk.Tk):
             return
         self.loaded_zip = Path(chosen).resolve()
         self.zip_dirty = False
-        self.set_active_root(root, chosen)
+        self.set_workspace(workspace_root, chosen)
+        self.active_root = root
         self.status_text.set(
-            f"ZIP loaded into a temporary working copy: {root}. "
+            f"Whole-set ZIP loaded into temporary workspace: {workspace_root}. "
             "Changes must be saved with Save ZIP As..."
         )
         self.run_audit()
@@ -231,8 +309,8 @@ class ForgeNaviDesktop(tk.Tk):
     def load_demo(self) -> None:
         self.loaded_zip = None
         self.zip_dirty = False
-        demo = resource_path("demo/custom")
-        self.set_active_root(demo, "Built-in demo")
+        demo = resource_path("demo")
+        self.set_workspace(demo, "Built-in demo")
         self.run_audit()
 
     def current_root(self) -> Path | None:
@@ -240,7 +318,7 @@ class ForgeNaviDesktop(tk.Tk):
             return self.active_root
         raw = self.source_path.get().strip().strip('"')
         if raw and Path(raw).is_dir():
-            self.active_root = core.normalize_root(Path(raw))
+            self.set_workspace(Path(raw), raw)
             return self.active_root
         messagebox.showinfo(APP_TITLE, "Choose a Forge folder or ZIP first.")
         return None
@@ -266,10 +344,16 @@ class ForgeNaviDesktop(tk.Tk):
         files_with_findings = {finding.file for finding in findings}
         for file_name in summary.get("script_files", []):
             if file_name not in files_with_findings:
+                clean_state = summary.get("script_statuses", {}).get(file_name, "GREEN")
+                message = (
+                    "Documented Forge-compatible errata; no audit findings."
+                    if clean_state == "ERRATA-GREEN"
+                    else "No audit findings."
+                )
                 self.tree.insert(
                     "", "end",
-                    values=("GREEN", file_name, "No structural findings."),
-                    tags=("GREEN",),
+                    values=(clean_state, file_name, message),
+                    tags=(clean_state,),
                 )
 
         for finding in findings:
@@ -284,6 +368,8 @@ class ForgeNaviDesktop(tk.Tk):
         )
         self.count_text.set(
             f"{state} • {summary['scripts_scanned']} scripts • "
+            f"{summary.get('green', 0)} GREEN • "
+            f"{summary.get('errata_green', 0)} ERRATA-GREEN • "
             f"{summary['errors']} errors • {summary['warnings']} warnings"
         )
         if state == "GREEN":
@@ -303,6 +389,155 @@ class ForgeNaviDesktop(tk.Tk):
             ),
             encoding="utf-8",
         )
+        self.refresh_workspace()
+
+    def refresh_workspace(self) -> None:
+        if self.workspace_root is None or not self.workspace_root.exists():
+            self.workspace_summary_text.set("No set workspace loaded yet.")
+            return
+        try:
+            inventory = workspace.build_inventory(
+                self.workspace_root,
+                self.last_summary.get("script_statuses", {}),
+            )
+        except Exception as exc:
+            self.workspace_summary_text.set(f"Workspace inventory failed: {exc}")
+            return
+
+        self.inventory = inventory
+        for item in self.workspace_tree.get_children():
+            self.workspace_tree.delete(item)
+
+        for index, card in enumerate(inventory.cards):
+            self.workspace_tree.insert(
+                "",
+                "end",
+                iid=f"card-{index}",
+                values=(
+                    card.status,
+                    card.name,
+                    card.script_path,
+                    card.art_state,
+                    card.token_state,
+                ),
+                tags=(card.status,),
+            )
+
+        counts = inventory.counts
+        codes = ", ".join(inventory.set_codes) if inventory.set_codes else "unknown set code"
+        self.workspace_summary_text.set(
+            f"{codes} • {counts['cards']} cards • "
+            f"{counts['green']} GREEN • {counts['errata_green']} ERRATA-GREEN • "
+            f"{counts['yellow']} YELLOW • {counts['red']} RED • "
+            f"art {counts['art_present']} present / {counts['art_missing']} missing • "
+            f"{counts['token_unresolved_cards']} card(s) with unresolved token deps"
+        )
+
+    def workspace_selected_card(self):
+        if self.inventory is None:
+            return None
+        selection = self.workspace_tree.selection()
+        if not selection:
+            messagebox.showinfo(APP_TITLE, "Select a card first.")
+            return None
+        iid = selection[0]
+        if not iid.startswith("card-"):
+            return None
+        try:
+            return self.inventory.cards[int(iid.split("-", 1)[1])]
+        except (ValueError, IndexError):
+            return None
+
+    def show_workspace_context(self, event) -> None:
+        row = self.workspace_tree.identify_row(event.y)
+        if not row:
+            return
+        self.workspace_tree.selection_set(row)
+        self.workspace_menu.tk_popup(event.x_root, event.y_root)
+
+    def open_workspace_script(self) -> None:
+        card = self.workspace_selected_card()
+        if card is None or self.workspace_root is None:
+            return
+        path = self.workspace_root / card.script_path
+        if not path.exists():
+            messagebox.showerror(APP_TITLE, f"Script not found:\n{path}")
+            return
+        open_path(path)
+
+    def open_workspace_art(self) -> None:
+        card = self.workspace_selected_card()
+        if card is None or self.workspace_root is None:
+            return
+        if card.art_state != "PRESENT" or not card.art_path:
+            messagebox.showinfo(APP_TITLE, f"Card art state: {card.art_state}")
+            return
+        path = self.workspace_root / card.art_path
+        if not path.exists():
+            messagebox.showerror(APP_TITLE, f"Card art not found:\n{path}")
+            return
+        open_path(path)
+
+    def load_workspace_card(self) -> None:
+        card = self.workspace_selected_card()
+        if card is None:
+            return
+        self.card_name.set(card.name)
+        self.card_mana.set(card.mana_cost)
+        self.card_types.set(card.types)
+        self.card_colors.set("")
+        self.card_pt.set("")
+        self.card_keywords.set("")
+        self.card_token_script.set(card.token_dependencies[0] if len(card.token_dependencies) == 1 else "")
+        self.oracle_text.delete("1.0", "end")
+        self.oracle_text.insert("1.0", card.oracle)
+        self.script_preview.delete("1.0", "end")
+        self.script_status.set(
+            f"Loaded {card.name} from workspace. Generate Draft to compare/rebuild."
+        )
+        self.notebook.select(self.script_tab)
+
+    def fix_workspace_selected(self) -> None:
+        card = self.workspace_selected_card()
+        if card is None or self.workspace_root is None:
+            return
+        path = self.workspace_root / card.script_path
+        root = self.current_root()
+        if root is None:
+            return
+        fixed, message = core.safe_repair_script(path, root)
+        if fixed:
+            if self.loaded_zip is not None:
+                self.zip_dirty = True
+            self.run_audit()
+            messagebox.showinfo(APP_TITLE, message)
+        else:
+            messagebox.showwarning(APP_TITLE, message)
+
+    def show_audit_context(self, event) -> None:
+        row = self.tree.identify_row(event.y)
+        if not row:
+            return
+        self.tree.selection_set(row)
+        self.audit_menu.tk_popup(event.x_root, event.y_root)
+
+    def fix_selected_safe(self) -> None:
+        selected = self.selected_finding()
+        if selected is None:
+            return
+        path = self.resolve_finding_path(str(selected[1]))
+        root = self.current_root()
+        if path is None or root is None or not path.exists():
+            messagebox.showerror(APP_TITLE, "Could not resolve the selected script.")
+            return
+        fixed, message = core.safe_repair_script(path, root)
+        if fixed:
+            if self.loaded_zip is not None:
+                self.zip_dirty = True
+            self.run_audit()
+            messagebox.showinfo(APP_TITLE, message)
+        else:
+            messagebox.showwarning(APP_TITLE, message)
 
     def selected_finding(self):
         selection = self.tree.selection()
@@ -421,7 +656,8 @@ class ForgeNaviDesktop(tk.Tk):
             return
 
         try:
-            core.save_workspace_zip(root, Path(out))
+            whole_root = self.workspace_root or root.parent
+            workspace.save_workspace_zip(whole_root, Path(out))
         except Exception as exc:
             messagebox.showerror(APP_TITLE, f"Could not save ZIP:\n{exc}")
             return
@@ -436,8 +672,9 @@ class ForgeNaviDesktop(tk.Tk):
         root = self.current_root()
         if root is None:
             return
+        target = self.workspace_root or root
         try:
-            open_path(root)
+            open_path(target)
         except Exception as exc:
             messagebox.showerror(APP_TITLE, f"Could not open folder:\n{exc}")
 

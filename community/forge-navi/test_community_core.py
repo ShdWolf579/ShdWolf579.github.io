@@ -41,6 +41,16 @@ class CommunityCoreTests(unittest.TestCase):
             self.assertEqual(summary["scripts_scanned"], 1)
             self.assertEqual(summary["errors"], 0)
 
+    def test_audit_reports_clean_script_paths(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "custom"
+            card = root / "cards" / "g" / "good.txt"
+            card.parent.mkdir(parents=True)
+            card.write_text("Name:Good\nTypes:Sorcery\nOracle:Draw a card.\n", encoding="utf-8")
+            findings, summary = core.audit(root)
+            self.assertEqual(findings, [])
+            self.assertEqual(summary["script_files"], ["cards/g/good.txt"])
+
     def test_save_workspace_zip(self):
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)

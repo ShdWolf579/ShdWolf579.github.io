@@ -1,0 +1,33 @@
+name: Cleanup Forge-Navi Dev Artifacts
+
+on:
+  push:
+    branches: [forge-navi-v0.4-dev]
+    paths:
+      - ".github/workflows/cleanup-forge-navi-dev-artifacts.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old Forge-Navi Community dev artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ids=$(gh api --paginate "/repos/$GH_REPO/actions/artifacts?per_page=100" --jq '.artifacts[] | select(.name | startswith("Forge-Navi-Community")) | .id')
+          if [ -z "$ids" ]; then
+            echo "No Forge-Navi Community artifacts to delete."
+            exit 0
+          fi
+          count=0
+          for id in $ids; do
+            gh api --method DELETE "/repos/$GH_REPO/actions/artifacts/$id"
+            count=$((count+1))
+          done
+          echo "Deleted $count Forge-Navi Community dev artifacts."

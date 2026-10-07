@@ -1,58 +1,54 @@
 param(
-    [string]$Destination = (Join-Path (Get-Location) "Forge-Navi-Community")
+    [string]$Destination = (Join-Path $env:LOCALAPPDATA "Forge-Navi-Community")
 )
 
 $ErrorActionPreference = "Stop"
 $BaseUrl = "https://shdwolf579.github.io/community/forge-navi"
+$ExeUrl = "$BaseUrl/dist/Forge-Navi-Community.exe"
+$HashUrl = "$BaseUrl/dist/SHA256.txt"
+$ExePath = Join-Path $Destination "Forge-Navi-Community.exe"
+$HashPath = Join-Path $Destination "SHA256.txt"
 
-$Files = @(
-    "README.md",
-    "ARCHITECTURE.md",
-    "forge_navi_community.py",
-    "forge_navi_desktop.py",
-    "token_navi_community.py",
-    "Launch Forge-Navi.cmd",
-    "demo/token-requirements.json",
-    "demo/custom/cards/d/demo_recruiter.txt",
-    "demo/custom/tokens/demo_scout.txt"
-)
-
-Write-Host "Forge-Navi + Token-Navi Community v0.2" -ForegroundColor Cyan
+Write-Host "Forge-Navi Community v0.2 Windows Installer" -ForegroundColor Cyan
 Write-Host "Installing to: $Destination"
 
-foreach ($Relative in $Files) {
-    $Target = Join-Path $Destination $Relative
-    $Directory = Split-Path $Target -Parent
-    New-Item -ItemType Directory -Force -Path $Directory | Out-Null
-    $Url = "$BaseUrl/$($Relative -replace '\\','/')"
-    Write-Host "  downloading $Relative"
-    Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Target
+New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+
+Write-Host "  downloading standalone application"
+Invoke-WebRequest -UseBasicParsing -Uri $ExeUrl -OutFile $ExePath
+
+Write-Host "  downloading integrity hash"
+Invoke-WebRequest -UseBasicParsing -Uri $HashUrl -OutFile $HashPath
+
+$Expected = ((Get-Content $HashPath -Raw).Trim() -split '\s+')[0].ToLower()
+$Actual = (Get-FileHash $ExePath -Algorithm SHA256).Hash.ToLower()
+
+if ($Expected -ne $Actual) {
+    Remove-Item $ExePath -Force -ErrorAction SilentlyContinue
+    throw "Forge-Navi integrity verification failed. Expected $Expected but got $Actual."
 }
+
+Write-Host "  SHA-256 verified" -ForegroundColor Green
 
 try {
     $Desktop = [Environment]::GetFolderPath("Desktop")
     $ShortcutPath = Join-Path $Desktop "Forge-Navi Community.lnk"
     $WshShell = New-Object -ComObject WScript.Shell
     $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-    $Shortcut.TargetPath = Join-Path $Destination "Launch Forge-Navi.cmd"
+    $Shortcut.TargetPath = $ExePath
     $Shortcut.WorkingDirectory = $Destination
     $Shortcut.Description = "Forge-Navi Community"
     $Shortcut.Save()
-    Write-Host "Desktop shortcut created: $ShortcutPath"
+    Write-Host "  desktop shortcut created"
 }
 catch {
-    Write-Warning "Could not create desktop shortcut. Use 'Launch Forge-Navi.cmd' in the install folder."
+    Write-Warning "Could not create the desktop shortcut. Launch the EXE directly from $Destination."
 }
 
 Write-Host ""
 Write-Host "Install complete." -ForegroundColor Green
-Write-Host "Launch:"
-Write-Host "  Double-click Forge-Navi Community on your desktop"
-Write-Host "  or run Launch Forge-Navi.cmd"
+Write-Host "Python is NOT required for the desktop app."
+Write-Host "Launch Forge-Navi Community from the desktop shortcut."
 Write-Host ""
-Write-Host "CLI demo:"
-Write-Host ('  cd "{0}"' -f $Destination)
-Write-Host "  py -3 forge_navi_community.py audit demo/custom --report demo/audit-report.json"
-Write-Host "  py -3 forge_navi_community.py handoff demo/custom demo/generated-token-requirements.json"
-Write-Host "  py -3 token_navi_community.py validate demo/generated-token-requirements.json"
-Write-Host "  py -3 forge_navi_community.py package demo/custom dist/demo-forge-package.zip"
+Write-Host "Installed executable:"
+Write-Host "  $ExePath"

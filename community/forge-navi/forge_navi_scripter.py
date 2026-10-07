@@ -337,4 +337,4 @@ def compile_card(spec: CardSpec) -> Draft:
         if key not in unique_patterns:
             unique_patterns.append(key)
 
-    return Draft(script="\\n".join(lines).rstrip() + "\\n", proven_patterns=unique_patterns, review=unique_review)
+    return Draft(script="\n".join(lines).rstrip() + "\n", proven_patterns=unique_patterns, review=unique_review)

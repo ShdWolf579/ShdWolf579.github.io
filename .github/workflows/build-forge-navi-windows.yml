@@ -37,6 +37,13 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist-public | Out-Null
           Copy-Item dist/Forge-Navi-Community.exe dist-public/Forge-Navi-Community.exe -Force
 
+      - name: Upload test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Forge-Navi-Community-Windows
+          path: community/forge-navi/dist-public/Forge-Navi-Community.exe
+          if-no-files-found: error
+
       - name: Publish executable into portfolio downloads
         shell: pwsh
         run: |

@@ -154,8 +154,7 @@ class ForgeNaviDesktop(tk.Tk):
         picker = ttk.Frame(self.audit_tab)
         picker.pack(fill="x", pady=(0, 8))
         ttk.Entry(picker, textvariable=self.source_path, state="readonly").pack(side="left", fill="x", expand=True)
-        ttk.Button(picker, text="Choose Folder", command=self.choose_folder).pack(side="left", padx=(8, 0))
-        ttk.Button(picker, text="Open ZIP", command=self.choose_zip).pack(side="left", padx=(8, 0))
+        ttk.Button(picker, text="Open Project", command=self.open_project_chooser).pack(side="left", padx=(8, 0))
         ttk.Button(picker, text="Load Demo", command=self.load_demo).pack(side="left", padx=(8, 0))
 
         project_info = ttk.LabelFrame(self.audit_tab, text="Project Source", padding=8)
@@ -292,6 +291,39 @@ class ForgeNaviDesktop(tk.Tk):
         self.status_text.set(
             f"Workspace: {self.workspace_root} • custom root: {self.active_root}"
         )
+
+    def open_project_chooser(self) -> None:
+        dialog = tk.Toplevel(self)
+        dialog.title("Open Forge Project")
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        frame = ttk.Frame(dialog, padding=18)
+        frame.pack(fill="both", expand=True)
+
+        ttk.Label(
+            frame,
+            text="What do you want to open?",
+            font=("Segoe UI", 11, "bold"),
+        ).pack(anchor="w", pady=(0, 12))
+
+        def pick_zip():
+            dialog.destroy()
+            self.choose_zip()
+
+        def pick_folder():
+            dialog.destroy()
+            self.choose_folder()
+
+        ttk.Button(frame, text="Open ZIP Archive", command=pick_zip, width=28).pack(fill="x")
+        ttk.Button(frame, text="Open Folder", command=pick_folder, width=28).pack(fill="x", pady=(8, 0))
+        ttk.Button(frame, text="Cancel", command=dialog.destroy, width=28).pack(fill="x", pady=(14, 0))
+
+        dialog.update_idletasks()
+        x = self.winfo_rootx() + (self.winfo_width() - dialog.winfo_width()) // 2
+        y = self.winfo_rooty() + (self.winfo_height() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{max(x, 0)}+{max(y, 0)}")
 
     def choose_folder(self) -> None:
         chosen = filedialog.askdirectory(title="Choose Forge custom folder or project folder")

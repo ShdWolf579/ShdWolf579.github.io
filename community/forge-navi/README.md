@@ -26,7 +26,7 @@ By default it installs the standalone EXE under `%LOCALAPPDATA%\\Forge-Navi-Comm
 
 ### Direct EXE
 
-If you do not want to use the installer, download `dist/Forge-Navi-Community.exe` and run it directly. The EXE is built automatically on Windows with PyInstaller and includes the Python runtime and Tk GUI dependencies.
+If you do not want to use the installer, use the **Download EXE Directly** button on the Community page. The download is served from the repository's raw file host rather than GitHub Pages. The EXE is built automatically on Windows with PyInstaller and includes the Python runtime and Tk GUI dependencies.
 
 Because this beta is not code-signed yet, Windows SmartScreen may show an unknown-publisher warning.
 

@@ -58,6 +58,7 @@ def first(fields: dict[str, list[str]], key: str) -> str | None:
 
 
 def audit(root: Path) -> tuple[list[Finding], dict]:
+    root = normalize_root(root)
     findings: list[Finding] = []
     names: dict[str, Path] = {}
     token_ids: set[str] = set()
@@ -137,6 +138,7 @@ def write_report(root: Path, out: Path) -> int:
 
 
 def build_handoff(root: Path, out: Path) -> int:
+    root = normalize_root(root)
     requirements = []
     seen = set()
     for path in iter_script_files(root):
@@ -169,6 +171,7 @@ def sha256(path: Path) -> str:
 
 
 def package(root: Path, out: Path) -> int:
+    root = normalize_root(root)
     findings, summary = audit(root)
     if summary["status"] != "PASS":
         print("Packaging blocked: audit has errors.", file=sys.stderr)

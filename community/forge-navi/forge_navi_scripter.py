@@ -269,7 +269,7 @@ def compile_card(spec: CardSpec) -> Draft:
     if not oracle:
         review.append("Oracle text is required.")
 
-    lines: list[str] = []
+    lines: list[str] = ["# FORGE-NAVI GENERATED"]
     if name:
         lines.append(f"Name:{name}")
     if spec.mana_cost.strip():

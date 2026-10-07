@@ -164,6 +164,34 @@ class CommunityCoreTests(unittest.TestCase):
             self.assertEqual(summary["errata_green"], 1)
             self.assertEqual(summary["script_statuses"]["cards/e/errata.txt"], "ERRATA-GREEN")
 
+    def test_safe_repair_regenerates_broken_generated_script(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "custom"
+            card = root / "cards" / "b" / "bright_study.txt"
+            card.parent.mkdir(parents=True)
+            draft = compile_card(
+                CardSpec(
+                    name="Bright Study",
+                    mana_cost="1 W U",
+                    types="Sorcery",
+                    oracle="Draw two cards. You gain 3 life.",
+                )
+            )
+            card.write_text(
+                draft.script.replace("SP$ Draw", "SP$ TotallyFake"),
+                encoding="utf-8",
+            )
+            findings, summary = core.audit(root)
+            self.assertEqual(summary["red_scripts"], 1)
+            self.assertTrue(any("TotallyFake" in f.message for f in findings))
+
+            fixed, message = core.safe_repair_script(card, root)
+            self.assertTrue(fixed, message)
+            findings, summary = core.audit(root)
+            self.assertEqual(summary["errors"], 0)
+            self.assertEqual(summary["green"], 1)
+            self.assertTrue((root / ".forge-navi" / "backups" / "cards" / "b" / "bright_study.txt").exists())
+
     def test_unknown_oracle_stays_review(self):
         draft = compile_card(
             CardSpec(

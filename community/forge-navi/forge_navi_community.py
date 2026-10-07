@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 import sys
 import zipfile
 from dataclasses import dataclass, asdict
@@ -291,6 +292,50 @@ def generate_card_script(root: Path, spec: CardSpec, overwrite: bool = False):
         raise FileExistsError(f"script already exists: {path}")
     path.write_text(draft.script, encoding="utf-8")
     return path, draft
+
+
+def safe_repair_script(path: Path, root: Path) -> tuple[bool, str]:
+    """Repair only a Forge-Navi-generated script that can be deterministically rebuilt."""
+    root = normalize_root(root)
+    path = path.resolve()
+    raw_text = path.read_text(encoding="utf-8-sig", errors="replace")
+    if not is_generated(raw_text):
+        return False, "No deterministic safe repair is available for this non-generated script yet."
+
+    fields, _ = parse_script(path, root)
+    name = first(fields, "Name") or ""
+    types = first(fields, "Types") or ""
+    oracle = first(fields, "Oracle") or ""
+    if not name or not types or not oracle:
+        return False, "Generated script is missing Name, Types, or Oracle; safe regeneration is blocked."
+
+    token_match = TOKEN_SCRIPT_RE.search(raw_text)
+    spec = CardSpec(
+        name=name,
+        mana_cost=first(fields, "ManaCost") or "",
+        types=types,
+        oracle=oracle,
+        colors=first(fields, "Colors") or "",
+        pt=first(fields, "PT") or "",
+        keywords=", ".join(fields.get("K", [])),
+        token_script=token_match.group(1) if token_match else "",
+    )
+    draft = compile_card(spec)
+    if draft.review:
+        return False, "Safe regeneration still has unsupported/review Oracle; no automatic rewrite was applied."
+
+    try:
+        rel = path.relative_to(root)
+    except ValueError:
+        return False, "Selected script is outside the active custom root."
+
+    backup = root / ".forge-navi" / "backups" / rel
+    backup.parent.mkdir(parents=True, exist_ok=True)
+    if not backup.exists():
+        shutil.copy2(path, backup)
+
+    path.write_text(draft.script, encoding="utf-8")
+    return True, f"Safe repair applied. Original backed up to {backup}"
 
 
 def save_workspace_zip(root: Path, out: Path) -> int:

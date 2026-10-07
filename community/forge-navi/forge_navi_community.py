@@ -266,6 +266,19 @@ def generate_card_script(root: Path, spec: CardSpec, overwrite: bool = False):
     return path, draft
 
 
+def save_workspace_zip(root: Path, out: Path) -> int:
+    """Save the current working custom tree without applying the release gate."""
+    root = normalize_root(root)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for path in sorted(
+            p for p in root.rglob("*")
+            if p.is_file() and ".forge-navi" not in p.relative_to(root).parts
+        ):
+            zf.write(path, path.relative_to(root).as_posix())
+    return 0
+
+
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as file:

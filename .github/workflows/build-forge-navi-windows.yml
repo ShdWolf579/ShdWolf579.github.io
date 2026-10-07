@@ -1,18 +1,20 @@
-name: Build Forge-Navi Windows
+name: Build Forge-Navi Windows Dev
 
 on:
   push:
-    branches: [main]
+    branches: [forge-navi-v0.3-dev]
     paths:
       - "community/forge-navi/forge_navi_community.py"
       - "community/forge-navi/forge_navi_desktop.py"
+      - "community/forge-navi/forge_navi_scripter.py"
+      - "community/forge-navi/test_community_core.py"
       - "community/forge-navi/token_navi_community.py"
       - "community/forge-navi/demo/**"
       - ".github/workflows/build-forge-navi-windows.yml"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-windows:
@@ -26,6 +28,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Run Community Core tests
+        shell: pwsh
+        run: |
+          Set-Location community/forge-navi
+          python -m unittest -v test_community_core.py
+
       - name: Install PyInstaller
         run: python -m pip install --upgrade pyinstaller
 
@@ -33,32 +41,13 @@ jobs:
         shell: pwsh
         run: |
           Set-Location community/forge-navi
-          pyinstaller --noconfirm --clean --onefile --windowed --name Forge-Navi-Community --add-data "demo;demo" forge_navi_desktop.py
+          pyinstaller --noconfirm --clean --onefile --windowed --name Forge-Navi-Community-v0.3-dev --add-data "demo;demo" forge_navi_desktop.py
           New-Item -ItemType Directory -Force -Path dist-public | Out-Null
-          Copy-Item dist/Forge-Navi-Community.exe dist-public/Forge-Navi-Community.exe -Force
+          Copy-Item dist/Forge-Navi-Community-v0.3-dev.exe dist-public/Forge-Navi-Community-v0.3-dev.exe -Force
 
       - name: Upload test artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Forge-Navi-Community-Windows
-          path: community/forge-navi/dist-public/Forge-Navi-Community.exe
+          name: Forge-Navi-Community-v0.3-dev-Windows
+          path: community/forge-navi/dist-public/Forge-Navi-Community-v0.3-dev.exe
           if-no-files-found: error
-
-      - name: Publish executable into portfolio downloads
-        shell: pwsh
-        run: |
-          $target = "community/forge-navi/dist"
-          New-Item -ItemType Directory -Force -Path $target | Out-Null
-          Copy-Item "community/forge-navi/dist-public/Forge-Navi-Community.exe" "$target/Forge-Navi-Community.exe" -Force
-          $hash = (Get-FileHash "$target/Forge-Navi-Community.exe" -Algorithm SHA256).Hash.ToLower()
-          Set-Content -Path "$target/SHA256.txt" -Value "$hash  Forge-Navi-Community.exe"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$target/Forge-Navi-Community.exe" "$target/SHA256.txt"
-          if (git diff --cached --quiet) {
-            Write-Host "Executable is unchanged."
-          } else {
-            git commit -m "Build Forge-Navi Community Windows executable"
-            git pull --rebase origin main
-            git push origin HEAD:main
-          }

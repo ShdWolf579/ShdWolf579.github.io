@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forge-Navi & Token-Navi | Joshua Phillips</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, Helvetica, sans-serif; background: #0b0f17; color: #e8edf5; line-height: 1.65; }
+        .container { width: min(1000px, 90%); margin: auto; }
+        nav { border-bottom: 1px solid #202b3d; padding: 18px 0; }
+        nav .container { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+        nav a { color: #6ea8ff; text-decoration: none; font-weight: bold; }
+        header { padding: 78px 0 42px; }
+        .eyebrow { color: #6ea8ff; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+        h1 { font-size: clamp(2.5rem, 7vw, 4.8rem); line-height: 1.05; margin-bottom: 18px; }
+        h2 { margin: 44px 0 16px; font-size: 1.85rem; }
+        h3 { margin-bottom: 8px; }
+        p { color: #aeb8c8; margin-bottom: 14px; }
+        .lead { max-width: 820px; font-size: 1.15rem; }
+        .badge { display: inline-block; margin-top: 10px; padding: 6px 10px; border: 1px solid #2f415c; border-radius: 999px; color: #6ea8ff; font-size: .82rem; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+        .card { background: #121824; border: 1px solid #202b3d; border-radius: 14px; padding: 22px; }
+        .flow { margin: 20px 0; background: #121824; border: 1px solid #202b3d; border-radius: 14px; padding: 22px; font-family: Consolas, monospace; color: #cbd6e6; overflow-x: auto; }
+        ul { padding-left: 22px; color: #c1cad7; }
+        li { margin: 8px 0; }
+        .note { border-left: 3px solid #6ea8ff; padding: 14px 18px; background: #101722; margin: 24px 0; color: #aeb8c8; }
+        footer { border-top: 1px solid #202b3d; padding: 35px 0; margin-top: 65px; color: #7f8a99; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="container">
+            <a href="index.html">← Back to Portfolio</a>
+            <a href="things-i-made.html">Things I Made</a>
+        </div>
+    </nav>
+
+    <header>
+        <div class="container">
+            <div class="eyebrow">Automation • QA • Game Tooling</div>
+            <h1>Forge-Navi & Token-Navi</h1>
+            <p class="lead">
+                A two-part automation and quality-assurance system I built to turn large batches of custom card content
+                into tested, install-ready releases for the open-source Forge card-game engine.
+            </p>
+            <span class="badge">ACTIVE PRIVATE PROJECT</span>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="note">
+                The production repositories are private because they contain working project data, internal tooling,
+                generated assets, and implementation-specific knowledge. This page documents the engineering approach
+                and the systems I built without publishing those internals.
+            </div>
+
+            <h2>The Problem</h2>
+            <p>
+                Creating custom content at scale was easy to get wrong in subtle ways. A script could parse successfully
+                and still behave incorrectly in-game. Tokens could be missing or mismatched. Naming collisions, packaging
+                mistakes, stale compatibility assumptions, and upstream engine changes could turn a large import into a
+                long manual debugging session.
+            </p>
+            <p>
+                I built Forge-Navi to make the scripting side repeatable and testable, then split visual asset production
+                into Token-Navi so each system could have a clear responsibility.
+            </p>
+
+            <h2>System Design</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>Forge-Navi</h3>
+                    <p>
+                        Owns card and token semantics, Forge scripting, validation, repair workflows, compatibility
+                        knowledge, dependency checks, project state, and final release gates.
+                    </p>
+                </div>
+                <div class="card">
+                    <h3>Token-Navi</h3>
+                    <p>
+                        Owns the visual-production pipeline for required token and card faces, including rendering,
+                        structural QA, approval tracking, and verified delivery back into the release pipeline.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flow">
+Raw Set
+  → Script / Semantic Analysis
+  → Static + Behavioral QA
+  → Known-Failure Classification
+  → Grouped Repair
+  → Token Dependency Handoff
+  → Visual Production + Approval
+  → Verified Import
+  → Full-Set Regression Audit
+  → GOLD Release Gate
+            </div>
+
+            <h2>What I Built</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>Semantic Validation</h3>
+                    <p>
+                        Validation goes beyond syntax. The core rule is to prove that a card behaves correctly, not merely
+                        that its script parses.
+                    </p>
+                </div>
+                <div class="card">
+                    <h3>Reusable Knowledge</h3>
+                    <p>
+                        Verified patterns, known engine traps, prior fixes, and failure classes are retained so later sets
+                        can reuse proven solutions instead of rediscovering the same bugs.
+                    </p>
+                </div>
+                <div class="card">
+                    <h3>Release Gates</h3>
+                    <p>
+                        Work moves through explicit audit states rather than being called finished early. Final assembly is
+                        treated as a candidate until an independent full-set audit passes.
+                    </p>
+                </div>
+                <div class="card">
+                    <h3>Token Handoff Contract</h3>
+                    <p>
+                        Forge-Navi describes exactly what a custom token needs. Token-Navi produces and approves the visual,
+                        then returns immutable assets for verified packaging.
+                    </p>
+                </div>
+                <div class="card">
+                    <h3>Upstream Compatibility</h3>
+                    <p>
+                        Current Forge behavior is tracked separately from stable project policy so engine changes can be
+                        absorbed without rewriting the whole system.
+                    </p>
+                </div>
+                <div class="card">
+                    <h3>Automation & Tooling</h3>
+                    <p>
+                        The workflow uses scripted installers, validation tools, project-state tracking, repeatable repair
+                        passes, packaging checks, and regression-oriented QA.
+                    </p>
+                </div>
+            </div>
+
+            <h2>Scale</h2>
+            <p>
+                The system has been used across a working library of more than 5,000 custom card scripts, hundreds of token
+                definitions/assets, and dozens of custom sets. That scale is what pushed the project from ad-hoc scripting
+                into a real production pipeline with checkpoints, repair queues, dependency contracts, and release criteria.
+            </p>
+
+            <h2>What This Project Demonstrates</h2>
+            <ul>
+                <li>PowerShell and scripting automation</li>
+                <li>Debugging and root-cause analysis</li>
+                <li>Static, semantic, and regression-oriented QA</li>
+                <li>Stateful production workflows and release gates</li>
+                <li>Dependency and asset-pipeline design</li>
+                <li>Compatibility work against an actively changing upstream project</li>
+                <li>Separating responsibilities between cooperating tools</li>
+                <li>Turning repeated manual failures into reusable automation</li>
+            </ul>
+
+            <h2>Why the Repositories Stay Private</h2>
+            <p>
+                The portfolio is intentionally the public-facing layer. The production repositories include internal
+                knowledge bases, active project state, generated content, runtime assets, and work-in-progress tooling.
+                Keeping those private lets me show the engineering decisions and results without publishing material that
+                does not belong in a public showcase.
+            </p>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">© 2026 Joshua Phillips</div>
+    </footer>
+</body>
+</html>

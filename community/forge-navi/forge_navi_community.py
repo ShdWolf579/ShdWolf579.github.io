@@ -192,7 +192,7 @@ def package(root: Path, out: Path) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     manifest = []
     with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for path in sorted(p for p in root.rglob("*") if p.is_file()):
+        for path in sorted(p for p in root.rglob("*") if p.is_file() and ".forge-navi" not in p.relative_to(root).parts):
             rel = path.relative_to(root).as_posix()
             zf.write(path, rel)
             manifest.append({"path": rel, "sha256": sha256(path)})

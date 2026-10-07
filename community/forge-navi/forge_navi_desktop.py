@@ -154,7 +154,7 @@ class ForgeNaviDesktop(tk.Tk):
         picker = ttk.Frame(self.audit_tab)
         picker.pack(fill="x", pady=(0, 8))
         ttk.Entry(picker, textvariable=self.source_path, state="readonly").pack(side="left", fill="x", expand=True)
-        ttk.Button(picker, text="Open", command=self.open_project_browser).pack(side="left", padx=(8, 0))
+        ttk.Button(picker, text="Open", command=self.open_native_project).pack(side="left", padx=(8, 0))
         ttk.Button(picker, text="Load Demo", command=self.load_demo).pack(side="left", padx=(8, 0))
 
         project_info = ttk.LabelFrame(self.audit_tab, text="Project Source", padding=8)
@@ -292,128 +292,58 @@ class ForgeNaviDesktop(tk.Tk):
             f"Workspace: {self.workspace_root} • custom root: {self.active_root}"
         )
 
-    def open_project_browser(self) -> None:
-        dialog = tk.Toplevel(self)
-        dialog.title("Open Forge Project")
-        dialog.transient(self)
-        dialog.grab_set()
-        dialog.geometry("760x520")
-        dialog.minsize(620, 420)
+    def open_native_project(self) -> None:
+        if not sys.platform.startswith("win"):
+            messagebox.showinfo(
+                APP_TITLE,
+                "Native ZIP-or-folder picking is currently Windows-only."
+            )
+            return
 
-        current = {"path": None}
-        entries: dict[str, Path] = {}
+        helper = resource_path("ForgeNaviNativePicker.exe")
+        if not helper.exists():
+            messagebox.showerror(
+                APP_TITLE,
+                f"Native Windows picker helper is missing:\n{helper}"
+            )
+            return
 
-        top = ttk.Frame(dialog, padding=(12, 12, 12, 6))
-        top.pack(fill="x")
-        path_var = tk.StringVar()
-        ttk.Label(top, text="Location:").pack(side="left")
-        ttk.Entry(top, textvariable=path_var, state="readonly").pack(
-            side="left", fill="x", expand=True, padx=(8, 8)
-        )
-
-        body = ttk.Frame(dialog, padding=(12, 0, 12, 8))
-        body.pack(fill="both", expand=True)
-
-        browser = ttk.Treeview(
-            body,
-            columns=("type",),
-            show="tree headings",
-            selectmode="browse",
-        )
-        browser.heading("#0", text="Name")
-        browser.heading("type", text="Type")
-        browser.column("#0", width=520, anchor="w")
-        browser.column("type", width=120, anchor="w", stretch=False)
-        browser.pack(side="left", fill="both", expand=True)
-
-        scroll = ttk.Scrollbar(body, orient="vertical", command=browser.yview)
-        scroll.pack(side="right", fill="y")
-        browser.configure(yscrollcommand=scroll.set)
-
-        def initial_directory() -> Path:
-            if self.loaded_zip is not None and self.loaded_zip.parent.exists():
-                return self.loaded_zip.parent
+        initial_dir = Path.home()
+        if self.loaded_zip is not None and self.loaded_zip.parent.exists():
+            initial_dir = self.loaded_zip.parent
+        else:
             raw = self.source_path.get().strip().strip('"')
             if raw:
                 candidate = Path(raw)
                 if candidate.is_dir():
-                    return candidate
-                if candidate.parent.is_dir():
-                    return candidate.parent
-            return Path.home()
+                    initial_dir = candidate
+                elif candidate.parent.is_dir():
+                    initial_dir = candidate.parent
 
-        def populate(path: Path) -> None:
-            try:
-                path = path.expanduser().resolve()
-                children = list(path.iterdir())
-            except Exception as exc:
-                messagebox.showerror(APP_TITLE, f"Could not open folder:\n{exc}", parent=dialog)
-                return
-
-            current["path"] = path
-            path_var.set(str(path))
-            entries.clear()
-            for item in browser.get_children():
-                browser.delete(item)
-
-            folders = sorted((x for x in children if x.is_dir()), key=lambda x: x.name.casefold())
-            zips = sorted(
-                (x for x in children if x.is_file() and x.suffix.casefold() == ".zip"),
-                key=lambda x: x.name.casefold(),
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        try:
+            result = subprocess.run(
+                [str(helper), str(self.winfo_id()), str(initial_dir)],
+                capture_output=True,
+                text=True,
+                creationflags=creationflags,
+                check=False,
             )
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE, f"Could not launch native Windows picker:\n{exc}")
+            return
 
-            for index, item in enumerate(folders):
-                iid = f"dir-{index}"
-                entries[iid] = item
-                browser.insert("", "end", iid=iid, text=item.name, values=("Folder",))
-            for index, item in enumerate(zips):
-                iid = f"zip-{index}"
-                entries[iid] = item
-                browser.insert("", "end", iid=iid, text=item.name, values=("ZIP archive",))
+        if result.returncode == 1:
+            return
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "Unknown picker error").strip()
+            messagebox.showerror(APP_TITLE, f"Native Windows picker failed:\n{detail}")
+            return
 
-        def selected_path() -> Path | None:
-            selection = browser.selection()
-            if not selection:
-                return None
-            return entries.get(selection[0])
-
-        def open_selected() -> None:
-            path = selected_path()
-            if path is None:
-                messagebox.showinfo(APP_TITLE, "Select a folder or ZIP first.", parent=dialog)
-                return
-            dialog.destroy()
-            self.open_project_path(path)
-
-        def activate_selected(_event=None) -> None:
-            path = selected_path()
-            if path is None:
-                return
-            if path.is_dir():
-                populate(path)
-            else:
-                dialog.destroy()
-                self.open_project_path(path)
-
-        def go_up() -> None:
-            path = current["path"]
-            if path is None:
-                return
-            parent = path.parent
-            if parent != path:
-                populate(parent)
-
-        ttk.Button(top, text="Up", command=go_up).pack(side="right")
-
-        browser.bind("<Double-1>", activate_selected)
-        browser.bind("<Return>", lambda _event: open_selected())
-
-        bottom = ttk.Frame(dialog, padding=(12, 0, 12, 12))
-        bottom.pack(fill="x")
-        ttk.Button(bottom, text="Cancel", command=dialog.destroy).pack(side="right")
-        ttk.Button(bottom, text="Open", command=open_selected).pack(side="right", padx=(0, 8))
-
-        populate(initial_directory())
+        selected = result.stdout.strip()
+        if not selected:
+            return
+        self.open_project_path(Path(selected))
 
     def open_project_path(self, path: Path) -> None:
         path = path.expanduser().resolve()

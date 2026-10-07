@@ -54,6 +54,8 @@ class ForgeNaviDesktop(tk.Tk):
         self.temp_dirs: list[Path] = []
         self.loaded_zip: Path | None = None
         self.zip_dirty = False
+        self.zip_baseline_snapshot: dict[str, str] | None = None
+        self.zip_backup_path: Path | None = None
         self.last_saved_script: Path | None = None
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -158,6 +160,7 @@ class ForgeNaviDesktop(tk.Tk):
         ttk.Button(actions, text="Open Selected Script", command=self.open_selected).pack(side="left", padx=(8, 0))
         ttk.Button(actions, text="Generate Token Handoff", command=self.generate_handoff).pack(side="left", padx=(8, 0))
         ttk.Button(actions, text="Build Package", command=self.build_package).pack(side="left", padx=(8, 0))
+        ttk.Button(actions, text="Save ZIP", command=self.save_zip).pack(side="left", padx=(8, 0))
         ttk.Button(actions, text="Save ZIP As...", command=self.save_zip_as).pack(side="left", padx=(8, 0))
         ttk.Button(actions, text="Open Working Folder", command=self.open_root).pack(side="left", padx=(8, 0))
 
@@ -276,6 +279,8 @@ class ForgeNaviDesktop(tk.Tk):
         if chosen:
             self.loaded_zip = None
             self.zip_dirty = False
+            self.zip_baseline_snapshot = None
+            self.zip_backup_path = None
             workspace_root = workspace.discover_workspace_root(Path(chosen))
             self.set_workspace(workspace_root, chosen)
             self.run_audit()
@@ -298,17 +303,21 @@ class ForgeNaviDesktop(tk.Tk):
             return
         self.loaded_zip = Path(chosen).resolve()
         self.zip_dirty = False
+        self.zip_backup_path = None
         self.set_workspace(workspace_root, chosen)
         self.active_root = root
+        self.zip_baseline_snapshot = workspace.workspace_snapshot(self.workspace_root)
         self.status_text.set(
             f"Whole-set ZIP loaded into temporary workspace: {workspace_root}. "
-            "Changes must be saved with Save ZIP As..."
+            "Edits are tracked; use Save ZIP to update the archive or Save ZIP As... for a copy."
         )
         self.run_audit()
 
     def load_demo(self) -> None:
         self.loaded_zip = None
         self.zip_dirty = False
+        self.zip_baseline_snapshot = None
+        self.zip_backup_path = None
         demo = resource_path("demo")
         self.set_workspace(demo, "Built-in demo")
         self.run_audit()
@@ -372,12 +381,21 @@ class ForgeNaviDesktop(tk.Tk):
             f"{summary.get('errata_green', 0)} ERRATA-GREEN • "
             f"{summary['errors']} errors • {summary['warnings']} warnings"
         )
+        if self.loaded_zip is not None and self.workspace_root is not None:
+            current_snapshot = workspace.workspace_snapshot(self.workspace_root)
+            if self.zip_baseline_snapshot is not None and current_snapshot != self.zip_baseline_snapshot:
+                self.zip_dirty = True
+
         if state == "GREEN":
-            self.status_text.set("Structural audit is clean. Packaging gate is open.")
+            status_message = "Structural audit is clean. Packaging gate is open."
         elif state == "YELLOW":
-            self.status_text.set("No structural blockers, but yellow findings still need review.")
+            status_message = "No structural blockers, but yellow findings still need review."
         else:
-            self.status_text.set("Packaging is blocked until the red findings are resolved.")
+            status_message = "Packaging is blocked until the red findings are resolved."
+
+        if self.loaded_zip is not None:
+            status_message += " ZIP: DIRTY (unsaved changes)." if self.zip_dirty else " ZIP: SAVED."
+        self.status_text.set(status_message)
 
         state_dir = root / ".forge-navi"
         state_dir.mkdir(parents=True, exist_ok=True)
@@ -633,6 +651,59 @@ class ForgeNaviDesktop(tk.Tk):
         else:
             messagebox.showerror(APP_TITLE, "Packaging was blocked by the audit.")
 
+    def _ensure_zip_backup(self) -> Path | None:
+        if self.loaded_zip is None or self.zip_backup_path is not None:
+            return self.zip_backup_path
+
+        source = self.loaded_zip
+        base = source.with_name(f"{source.stem}.forge-navi-backup{source.suffix}")
+        candidate = base
+        counter = 2
+        while candidate.exists():
+            candidate = source.with_name(
+                f"{source.stem}.forge-navi-backup-{counter}{source.suffix}"
+            )
+            counter += 1
+        shutil.copy2(source, candidate)
+        self.zip_backup_path = candidate
+        return candidate
+
+    def save_zip(self) -> None:
+        root = self.current_root()
+        if root is None:
+            return
+        if self.loaded_zip is None:
+            messagebox.showinfo(
+                APP_TITLE,
+                "This project was opened as a folder. Changes are already saved directly to disk."
+            )
+            return
+
+        if self.workspace_root is None:
+            messagebox.showerror(APP_TITLE, "No whole-set workspace is active.")
+            return
+
+        try:
+            backup = self._ensure_zip_backup()
+            target = self.loaded_zip
+            temp_target = target.with_name(f".{target.name}.forge-navi.tmp")
+            workspace.save_workspace_zip(self.workspace_root, temp_target)
+            os.replace(temp_target, target)
+            self.zip_baseline_snapshot = workspace.workspace_snapshot(self.workspace_root)
+            self.zip_dirty = False
+        except Exception as exc:
+            try:
+                if 'temp_target' in locals() and temp_target.exists():
+                    temp_target.unlink()
+            except OSError:
+                pass
+            messagebox.showerror(APP_TITLE, f"Could not save ZIP:\n{exc}")
+            return
+
+        backup_text = f"\nOriginal backup: {backup}" if backup else ""
+        self.status_text.set(f"ZIP: SAVED • {target}")
+        messagebox.showinfo(APP_TITLE, f"ZIP updated:\n{target}{backup_text}")
+
     def save_zip_as(self) -> None:
         root = self.current_root()
         if root is None:
@@ -664,6 +735,9 @@ class ForgeNaviDesktop(tk.Tk):
 
         self.loaded_zip = Path(out).resolve()
         self.zip_dirty = False
+        self.zip_backup_path = None
+        if self.workspace_root is not None:
+            self.zip_baseline_snapshot = workspace.workspace_snapshot(self.workspace_root)
         self.source_path.set(str(self.loaded_zip))
         self.status_text.set(f"ZIP saved: {self.loaded_zip}")
         messagebox.showinfo(APP_TITLE, f"Edited ZIP saved:\n{self.loaded_zip}")
@@ -733,7 +807,7 @@ class ForgeNaviDesktop(tk.Tk):
         if self.loaded_zip is not None:
             self.zip_dirty = True
             self.status_text.set(
-                "ZIP working copy modified. Use Save ZIP As... before closing Navi."
+                "ZIP working copy modified. Use Save ZIP to update the archive."
             )
         self.run_audit()
         if draft.review:
@@ -775,14 +849,14 @@ class ForgeNaviDesktop(tk.Tk):
             choice = messagebox.askyesnocancel(
                 APP_TITLE,
                 "This ZIP has unsaved changes.\n\n"
-                "Yes = Save ZIP As...\n"
+                "Yes = Save ZIP\n"
                 "No = discard changes and close\n"
                 "Cancel = keep Navi open",
             )
             if choice is None:
                 return
             if choice:
-                self.save_zip_as()
+                self.save_zip()
                 if self.zip_dirty:
                     return
 

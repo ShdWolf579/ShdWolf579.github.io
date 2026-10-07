@@ -42,7 +42,7 @@ namespace ForgeNaviNativePicker
             try
             {
                 dialog.SetTitle("Open Forge Project");
-                dialog.SetOkButtonLabel("Open ZIP");
+                dialog.SetOkButtonLabel("Open");
 
                 COMDLG_FILTERSPEC[] filters = new COMDLG_FILTERSPEC[]
                 {
@@ -73,7 +73,6 @@ namespace ForgeNaviNativePicker
                     }
                 }
 
-                customize.AddText(SELECT_FOLDER_BUTTON - 1, "Choose a ZIP file with Open ZIP, or use the button below for the current folder.");
                 customize.AddPushButton(SELECT_FOLDER_BUTTON, "Select This Folder");
 
                 sink = new DialogEventSink(dialog, SELECT_FOLDER_BUTTON);

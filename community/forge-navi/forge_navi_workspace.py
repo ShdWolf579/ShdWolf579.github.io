@@ -52,7 +52,12 @@ def _looks_like_custom(path: Path) -> bool:
 
 
 def discover_workspace_root(path: Path) -> Path:
-    """Resolve a user-selected folder/extraction tree to the whole set workspace."""
+    """Resolve a user-selected folder/extraction tree to the whole set workspace.
+
+    A directory that directly contains cards/ or tokens/ is treated as a bare
+    custom-root workspace. Never walk upward from it; doing so can escape an
+    extracted ZIP and accidentally bind to an unrelated custom/ tree.
+    """
     path = path.expanduser().resolve()
 
     if path.name.casefold() == "custom" and _looks_like_custom(path):
@@ -62,7 +67,7 @@ def discover_workspace_root(path: Path) -> Path:
         return path
 
     if _looks_like_custom(path):
-        return path.parent
+        return path
 
     candidates: list[Path] = []
     try:
@@ -81,6 +86,8 @@ def discover_workspace_root(path: Path) -> Path:
 
 def discover_custom_root(workspace_root: Path) -> Path:
     workspace_root = workspace_root.expanduser().resolve()
+    if _looks_like_custom(workspace_root):
+        return workspace_root
     direct = workspace_root / "custom"
     if _looks_like_custom(direct):
         return direct

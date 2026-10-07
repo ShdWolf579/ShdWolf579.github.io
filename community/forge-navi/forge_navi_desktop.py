@@ -412,12 +412,7 @@ class ForgeNaviDesktop(tk.Tk):
             return
 
         try:
-            with core.zipfile.ZipFile(Path(out), "w", compression=core.zipfile.ZIP_DEFLATED) as zf:
-                for path in sorted(
-                    p for p in root.rglob("*")
-                    if p.is_file() and ".forge-navi" not in p.relative_to(root).parts
-                ):
-                    zf.write(path, path.relative_to(root).as_posix())
+            core.save_workspace_zip(root, Path(out))
         except Exception as exc:
             messagebox.showerror(APP_TITLE, f"Could not save ZIP:\n{exc}")
             return

@@ -1,0 +1,6 @@
+Name:Demo Recruiter
+ManaCost:1 W
+Types:Creature Human Artificer
+PT:2/2
+A:AB$ Token | Cost$ 1 W T | TokenScript$ demo_scout | TokenAmount$ 1 | SpellDescription$ Create a demo Scout token.
+Oracle:1W, T: Create a demo Scout token.

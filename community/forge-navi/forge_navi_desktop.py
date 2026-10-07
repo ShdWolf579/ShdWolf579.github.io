@@ -48,6 +48,8 @@ class ForgeNaviDesktop(tk.Tk):
         self.last_summary = {}
         self.active_root: Path | None = None
         self.temp_dirs: list[Path] = []
+        self.loaded_zip: Path | None = None
+        self.zip_dirty = False
         self.last_saved_script: Path | None = None
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -88,6 +90,7 @@ class ForgeNaviDesktop(tk.Tk):
         ttk.Button(actions, text="Open Selected Script", command=self.open_selected).pack(side="left", padx=(8, 0))
         ttk.Button(actions, text="Generate Token Handoff", command=self.generate_handoff).pack(side="left", padx=(8, 0))
         ttk.Button(actions, text="Build Package", command=self.build_package).pack(side="left", padx=(8, 0))
+        ttk.Button(actions, text="Save ZIP As...", command=self.save_zip_as).pack(side="left", padx=(8, 0))
         ttk.Button(actions, text="Open Working Folder", command=self.open_root).pack(side="left", padx=(8, 0))
 
         summary = ttk.LabelFrame(self.audit_tab, text="Audit Summary", padding=10)
@@ -194,6 +197,8 @@ class ForgeNaviDesktop(tk.Tk):
     def choose_folder(self) -> None:
         chosen = filedialog.askdirectory(title="Choose Forge custom folder or project folder")
         if chosen:
+            self.loaded_zip = None
+            self.zip_dirty = False
             root = core.normalize_root(Path(chosen))
             self.set_active_root(root, chosen)
             self.run_audit()
@@ -214,11 +219,18 @@ class ForgeNaviDesktop(tk.Tk):
             self.temp_dirs.remove(temp)
             messagebox.showerror(APP_TITLE, f"Could not open ZIP:\n{exc}")
             return
+        self.loaded_zip = Path(chosen).resolve()
+        self.zip_dirty = False
         self.set_active_root(root, chosen)
-        self.status_text.set(f"ZIP loaded into temporary working copy: {root}")
+        self.status_text.set(
+            f"ZIP loaded into a temporary working copy: {root}. "
+            "Changes must be saved with Save ZIP As..."
+        )
         self.run_audit()
 
     def load_demo(self) -> None:
+        self.loaded_zip = None
+        self.zip_dirty = False
         demo = resource_path("demo/custom")
         self.set_active_root(demo, "Built-in demo")
         self.run_audit()
@@ -377,6 +389,45 @@ class ForgeNaviDesktop(tk.Tk):
         else:
             messagebox.showerror(APP_TITLE, "Packaging was blocked by the audit.")
 
+    def save_zip_as(self) -> None:
+        root = self.current_root()
+        if root is None:
+            return
+        if self.loaded_zip is None:
+            messagebox.showinfo(
+                APP_TITLE,
+                "This project was opened as a folder. Files are already being written directly to disk."
+            )
+            return
+
+        suggested = f"{self.loaded_zip.stem}-edited.zip"
+        out = filedialog.asksaveasfilename(
+            title="Save edited Forge ZIP",
+            initialdir=str(self.loaded_zip.parent),
+            initialfile=suggested,
+            defaultextension=".zip",
+            filetypes=[("ZIP files", "*.zip")],
+        )
+        if not out:
+            return
+
+        try:
+            with core.zipfile.ZipFile(Path(out), "w", compression=core.zipfile.ZIP_DEFLATED) as zf:
+                for path in sorted(
+                    p for p in root.rglob("*")
+                    if p.is_file() and ".forge-navi" not in p.relative_to(root).parts
+                ):
+                    zf.write(path, path.relative_to(root).as_posix())
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE, f"Could not save ZIP:\n{exc}")
+            return
+
+        self.loaded_zip = Path(out).resolve()
+        self.zip_dirty = False
+        self.source_path.set(str(self.loaded_zip))
+        self.status_text.set(f"ZIP saved: {self.loaded_zip}")
+        messagebox.showinfo(APP_TITLE, f"Edited ZIP saved:\n{self.loaded_zip}")
+
     def open_root(self) -> None:
         root = self.current_root()
         if root is None:
@@ -438,6 +489,11 @@ class ForgeNaviDesktop(tk.Tk):
             return
 
         self.last_saved_script = path
+        if self.loaded_zip is not None:
+            self.zip_dirty = True
+            self.status_text.set(
+                "ZIP working copy modified. Use Save ZIP As... before closing Navi."
+            )
         self.run_audit()
         if draft.review:
             messagebox.showwarning(
@@ -474,6 +530,21 @@ class ForgeNaviDesktop(tk.Tk):
         self.last_saved_script = None
 
     def on_close(self) -> None:
+        if self.loaded_zip is not None and self.zip_dirty:
+            choice = messagebox.askyesnocancel(
+                APP_TITLE,
+                "This ZIP has unsaved changes.\n\n"
+                "Yes = Save ZIP As...\n"
+                "No = discard changes and close\n"
+                "Cancel = keep Navi open",
+            )
+            if choice is None:
+                return
+            if choice:
+                self.save_zip_as()
+                if self.zip_dirty:
+                    return
+
         for temp in self.temp_dirs:
             shutil.rmtree(temp, ignore_errors=True)
         self.destroy()

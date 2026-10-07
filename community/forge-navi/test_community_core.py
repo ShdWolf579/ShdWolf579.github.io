@@ -41,6 +41,23 @@ class CommunityCoreTests(unittest.TestCase):
             self.assertEqual(summary["scripts_scanned"], 1)
             self.assertEqual(summary["errors"], 0)
 
+    def test_save_workspace_zip(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            root = td / "custom"
+            card = root / "cards" / "s" / "saved.txt"
+            card.parent.mkdir(parents=True)
+            card.write_text("Name:Saved\nTypes:Sorcery\nOracle:Draw a card.\n", encoding="utf-8")
+            state = root / ".forge-navi" / "audit-report.json"
+            state.parent.mkdir(parents=True)
+            state.write_text("{}", encoding="utf-8")
+            out = td / "edited.zip"
+            self.assertEqual(core.save_workspace_zip(root, out), 0)
+            with zipfile.ZipFile(out) as zf:
+                names = set(zf.namelist())
+            self.assertIn("cards/s/saved.txt", names)
+            self.assertFalse(any(name.startswith(".forge-navi/") for name in names))
+
     def test_generator_simple_spell_chain(self):
         draft = compile_card(
             CardSpec(

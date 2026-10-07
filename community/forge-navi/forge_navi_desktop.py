@@ -123,11 +123,10 @@ class ForgeNaviDesktop(tk.Tk):
         self.tree.tag_configure("RED", foreground="#b00020")
         self.tree.tag_configure("YELLOW", foreground="#9a6700")
         self.tree.tag_configure("GREEN", foreground="#137333")
-        self.tree.tag_configure("ERRATA-GREEN", foreground="#137333")
 
         ttk.Label(
             self.audit_tab,
-            text="RED = error • YELLOW = review • GREEN = exact clean • ERRATA-GREEN = documented clean errata",
+            text="RED = structural error • YELLOW = review recommended • GREEN = no structural findings",
         ).pack(anchor="w", pady=(8, 0))
 
     def _build_script_tab(self) -> None:
@@ -267,16 +266,10 @@ class ForgeNaviDesktop(tk.Tk):
         files_with_findings = {finding.file for finding in findings}
         for file_name in summary.get("script_files", []):
             if file_name not in files_with_findings:
-                clean_state = summary.get("script_statuses", {}).get(file_name, "GREEN")
-                message = (
-                    "Documented Forge-compatible errata; no audit findings."
-                    if clean_state == "ERRATA-GREEN"
-                    else "No audit findings."
-                )
                 self.tree.insert(
                     "", "end",
-                    values=(clean_state, file_name, message),
-                    tags=(clean_state,),
+                    values=("GREEN", file_name, "No structural findings."),
+                    tags=("GREEN",),
                 )
 
         for finding in findings:
@@ -291,8 +284,6 @@ class ForgeNaviDesktop(tk.Tk):
         )
         self.count_text.set(
             f"{state} • {summary['scripts_scanned']} scripts • "
-            f"{summary.get('green', 0)} GREEN • "
-            f"{summary.get('errata_green', 0)} ERRATA-GREEN • "
             f"{summary['errors']} errors • {summary['warnings']} warnings"
         )
         if state == "GREEN":

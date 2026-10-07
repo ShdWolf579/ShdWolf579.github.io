@@ -8,7 +8,7 @@ $BaseUrl = "https://shdwolf579.github.io/community/forge-navi"
 $Files = @(
     "README.md",
     "forge_navi_community.py",
-    "token_navi_community.py",
+    "token_navi_community.py",\n    "forge_navi_desktop.py",\n    "Launch Forge-Navi.cmd",\n    "ARCHITECTURE.md",
     "demo/token-requirements.json",
     "demo/custom/cards/d/demo_recruiter.txt",
     "demo/custom/tokens/demo_scout.txt"
@@ -28,7 +28,7 @@ foreach ($Relative in $Files) {
 
 Write-Host ""
 Write-Host "Install complete." -ForegroundColor Green
-Write-Host "Try:"
+Write-Host "Launch:"\nWrite-Host "  Double-click Forge-Navi Community on your desktop"\nWrite-Host "  or run Launch Forge-Navi.cmd"\nWrite-Host ""\nWrite-Host "CLI demo:"
 Write-Host ('  cd "{0}"' -f $Destination)
 Write-Host "  py -3 forge_navi_community.py audit demo/custom --report demo/audit-report.json"
 Write-Host "  py -3 forge_navi_community.py handoff demo/custom demo/generated-token-requirements.json"

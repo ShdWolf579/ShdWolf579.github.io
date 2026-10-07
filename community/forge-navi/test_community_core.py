@@ -78,6 +78,7 @@ class CommunityCoreTests(unittest.TestCase):
             )
         )
         self.assertEqual(draft.review, [])
+        self.assertIn("# FORGE-NAVI GENERATED", draft.script)
         self.assertIn("A:SP$ Draw", draft.script)
         self.assertIn("SubAbility$ DBEffect2", draft.script)
         self.assertIn("SVar:DBEffect2:DB$ GainLife", draft.script)
@@ -109,6 +110,73 @@ class CommunityCoreTests(unittest.TestCase):
         )
         self.assertIn("Name:Line Test\nManaCost:1 U\nTypes:Sorcery\n", draft.script)
         self.assertNotIn("\\n", draft.script)
+
+    def test_generated_bad_api_is_red(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "custom"
+            card = root / "cards" / "b" / "bad_generated.txt"
+            card.parent.mkdir(parents=True)
+            card.write_text(
+                "# FORGE-NAVI GENERATED\n"
+                "Name:Bad Generated\n"
+                "Types:Sorcery\n"
+                "A:SP$ TotallyFake | NumCards$ 1\n"
+                "Oracle:Draw a card.\n",
+                encoding="utf-8",
+            )
+            findings, summary = core.audit(root)
+            self.assertEqual(summary["red_scripts"], 1)
+            self.assertTrue(any("unknown generated API 'TotallyFake'" in f.message for f in findings))
+
+    def test_generated_missing_required_param_is_red(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "custom"
+            card = root / "cards" / "b" / "bad_draw.txt"
+            card.parent.mkdir(parents=True)
+            card.write_text(
+                "# FORGE-NAVI GENERATED\n"
+                "Name:Bad Draw\n"
+                "Types:Sorcery\n"
+                "A:SP$ Draw\n"
+                "Oracle:Draw a card.\n",
+                encoding="utf-8",
+            )
+            findings, summary = core.audit(root)
+            self.assertEqual(summary["red_scripts"], 1)
+            self.assertTrue(any("missing required 'NumCards        draft = compile_card(
+            CardSpec(
+                name="Weird Thing",
+                mana_cost="1 U",
+                types="Sorcery",
+                oracle="Exchange the moon with your library.",
+            )
+        )
+        self.assertTrue(draft.review)
+        self.assertIn("FORGE-NAVI REVIEW", draft.script)
+
+
+if __name__ == "__main__":
+    unittest.main()
+" in f.message for f in findings))
+
+    def test_green_and_errata_green_counts(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "custom"
+            green = root / "cards" / "g" / "green.txt"
+            errata = root / "cards" / "e" / "errata.txt"
+            green.parent.mkdir(parents=True)
+            errata.parent.mkdir(parents=True)
+            green.write_text("Name:Green\nTypes:Sorcery\nOracle:Draw a card.\n", encoding="utf-8")
+            errata.write_text(
+                "# FORGE-NAVI STATUS: ERRATA-GREEN\n"
+                "Name:Errata\nTypes:Sorcery\nOracle:Draw a card.\n",
+                encoding="utf-8",
+            )
+            findings, summary = core.audit(root)
+            self.assertEqual(findings, [])
+            self.assertEqual(summary["green"], 1)
+            self.assertEqual(summary["errata_green"], 1)
+            self.assertEqual(summary["script_statuses"]["cards/e/errata.txt"], "ERRATA-GREEN")
 
     def test_unknown_oracle_stays_review(self):
         draft = compile_card(

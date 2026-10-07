@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Iterable
 
 from forge_navi_scripter import CardSpec, compile_card, script_relative_path
+from forge_navi_validator import is_errata_green, is_generated, validate_generated_script
 
 SVAR_REF_RE = re.compile(r"(?:Execute\$|SubAbility\$|References\$)\s*([A-Za-z0-9_]+)")
 TOKEN_SCRIPT_RE = re.compile(r"TokenScript\$\s*([A-Za-z0-9_.-]+)")
@@ -137,6 +138,7 @@ def audit(root: Path) -> tuple[list[Finding], dict]:
     names: dict[str, Path] = {}
     token_ids: set[str] = set()
     required_tokens: list[tuple[Path, str]] = []
+    errata_green_files: set[str] = set()
     scanned = 0
 
     token_root = root / "tokens"
@@ -172,6 +174,11 @@ def audit(root: Path) -> tuple[list[Finding], dict]:
                 names[key] = path
 
         raw_text = path.read_text(encoding="utf-8-sig", errors="replace")
+        generated_strict = is_generated(raw_text)
+        if is_errata_green(raw_text):
+            errata_green_files.add(rel)
+        for message in validate_generated_script(fields, raw_text):
+            findings.append(Finding("ERROR", rel, message))
         if REVIEW_MARKER_RE.search(raw_text) and not any(
             f.file == rel and "FORGE-NAVI REVIEW" in f.message for f in findings
         ):
@@ -191,7 +198,8 @@ def audit(root: Path) -> tuple[list[Finding], dict]:
         all_values = "\n".join(v for values in fields.values() for v in values)
         for ref in SVAR_REF_RE.findall(all_values):
             if ref not in svars and ref not in {"DBEffect", "None"}:
-                findings.append(Finding("WARN", rel, f"referenced SVar '{ref}' is not defined in this file"))
+                severity = "ERROR" if generated_strict else "WARN"
+                findings.append(Finding(severity, rel, f"referenced SVar '{ref}' is not defined in this file"))
 
         for token_id in TOKEN_SCRIPT_RE.findall(all_values):
             required_tokens.append((path, token_id))
@@ -207,10 +215,27 @@ def audit(root: Path) -> tuple[list[Finding], dict]:
             )
 
     script_files = [display_path(path, root) for path in iter_script_files(root)]
+    script_statuses: dict[str, str] = {}
+    for file_name in script_files:
+        file_findings = [f for f in findings if f.file == file_name]
+        if any(f.severity == "ERROR" for f in file_findings):
+            script_statuses[file_name] = "RED"
+        elif any(f.severity == "WARN" for f in file_findings):
+            script_statuses[file_name] = "YELLOW"
+        elif file_name in errata_green_files:
+            script_statuses[file_name] = "ERRATA-GREEN"
+        else:
+            script_statuses[file_name] = "GREEN"
+
     summary = {
         "root": str(root),
         "script_files": script_files,
+        "script_statuses": script_statuses,
         "scripts_scanned": scanned,
+        "green": sum(status == "GREEN" for status in script_statuses.values()),
+        "errata_green": sum(status == "ERRATA-GREEN" for status in script_statuses.values()),
+        "red_scripts": sum(status == "RED" for status in script_statuses.values()),
+        "yellow_scripts": sum(status == "YELLOW" for status in script_statuses.values()),
         "errors": sum(f.severity == "ERROR" for f in findings),
         "warnings": sum(f.severity == "WARN" for f in findings),
         "status": "PASS" if not any(f.severity == "ERROR" for f in findings) else "FAIL",

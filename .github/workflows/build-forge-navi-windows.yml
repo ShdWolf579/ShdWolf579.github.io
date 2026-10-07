@@ -10,6 +10,7 @@ on:
       - "community/forge-navi/forge_navi_scripter.py"
       - "community/forge-navi/forge_navi_workspace.py"
       - "community/forge-navi/forge_navi_validator.py"
+      - "community/forge-navi/ForgeNaviNativePicker.cs"
       - "community/forge-navi/test_workspace.py"
       - "community/forge-navi/test_community_core.py"
       - "community/forge-navi/token_navi_community.py"
@@ -38,6 +39,24 @@ jobs:
           Set-Location community/forge-navi
           python -m unittest -v test_community_core.py test_workspace.py
 
+      - name: Compile native Windows picker
+        shell: pwsh
+        run: |
+          Set-Location community/forge-navi
+          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $csc)) {
+            $csc = "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+          }
+          if (-not (Test-Path $csc)) {
+            throw "Could not locate the .NET Framework C# compiler."
+          }
+          & $csc /nologo /target:exe /out:ForgeNaviNativePicker.exe ForgeNaviNativePicker.cs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $selfTest = & .\ForgeNaviNativePicker.exe --self-test
+          if ($LASTEXITCODE -ne 0 -or $selfTest.Trim() -ne "OK") {
+            throw "Native picker self-test failed: $selfTest"
+          }
+
       - name: Install PyInstaller
         run: python -m pip install --upgrade pyinstaller
 
@@ -45,7 +64,7 @@ jobs:
         shell: pwsh
         run: |
           Set-Location community/forge-navi
-          pyinstaller --noconfirm --clean --onefile --windowed --name Forge-Navi-Community-v0.4-dev --add-data "demo;demo" forge_navi_desktop.py
+          pyinstaller --noconfirm --clean --onefile --windowed --name Forge-Navi-Community-v0.4-dev --add-data "demo;demo" --add-binary "ForgeNaviNativePicker.exe;." forge_navi_desktop.py
           New-Item -ItemType Directory -Force -Path dist-public | Out-Null
           Copy-Item dist/Forge-Navi-Community-v0.4-dev.exe dist-public/Forge-Navi-Community-v0.4-dev.exe -Force
 

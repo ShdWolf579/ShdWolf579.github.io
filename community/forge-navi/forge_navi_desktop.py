@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import tkinter as tk
+import zipfile
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
@@ -306,11 +307,26 @@ class ForgeNaviDesktop(tk.Tk):
 
     def choose_zip(self) -> None:
         chosen = filedialog.askopenfilename(
-            title="Open Forge custom ZIP",
-            filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")],
+            title="Open Forge ZIP",
+            filetypes=[("All files", "*"), ("ZIP archives", "*.zip")],
         )
         if not chosen:
             return
+
+        chosen_path = Path(chosen)
+        if chosen_path.suffix.casefold() != ".zip":
+            messagebox.showerror(
+                APP_TITLE,
+                f"That is not a ZIP archive:\n{chosen_path}"
+            )
+            return
+        if not zipfile.is_zipfile(chosen_path):
+            messagebox.showerror(
+                APP_TITLE,
+                f"The selected file is not a valid ZIP archive:\n{chosen_path}"
+            )
+            return
+
         temp = Path(tempfile.mkdtemp(prefix="forge-navi-zip-"))
         self.temp_dirs.append(temp)
         try:

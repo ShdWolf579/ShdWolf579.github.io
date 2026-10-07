@@ -154,7 +154,7 @@ class ForgeNaviDesktop(tk.Tk):
         picker = ttk.Frame(self.audit_tab)
         picker.pack(fill="x", pady=(0, 8))
         ttk.Entry(picker, textvariable=self.source_path, state="readonly").pack(side="left", fill="x", expand=True)
-        ttk.Button(picker, text="Open Project", command=self.open_project_chooser).pack(side="left", padx=(8, 0))
+        ttk.Button(picker, text="Open", command=self.open_project_browser).pack(side="left", padx=(8, 0))
         ttk.Button(picker, text="Load Demo", command=self.load_demo).pack(side="left", padx=(8, 0))
 
         project_info = ttk.LabelFrame(self.audit_tab, text="Project Source", padding=8)
@@ -292,66 +292,150 @@ class ForgeNaviDesktop(tk.Tk):
             f"Workspace: {self.workspace_root} • custom root: {self.active_root}"
         )
 
-    def open_project_chooser(self) -> None:
+    def open_project_browser(self) -> None:
         dialog = tk.Toplevel(self)
         dialog.title("Open Forge Project")
         dialog.transient(self)
         dialog.grab_set()
-        dialog.resizable(False, False)
+        dialog.geometry("760x520")
+        dialog.minsize(620, 420)
 
-        frame = ttk.Frame(dialog, padding=18)
-        frame.pack(fill="both", expand=True)
+        current = {"path": None}
+        entries: dict[str, Path] = {}
 
-        ttk.Label(
-            frame,
-            text="What do you want to open?",
-            font=("Segoe UI", 11, "bold"),
-        ).pack(anchor="w", pady=(0, 12))
-
-        def pick_zip():
-            dialog.destroy()
-            self.choose_zip()
-
-        def pick_folder():
-            dialog.destroy()
-            self.choose_folder()
-
-        ttk.Button(frame, text="Open ZIP Archive", command=pick_zip, width=28).pack(fill="x")
-        ttk.Button(frame, text="Open Folder", command=pick_folder, width=28).pack(fill="x", pady=(8, 0))
-        ttk.Button(frame, text="Cancel", command=dialog.destroy, width=28).pack(fill="x", pady=(14, 0))
-
-        dialog.update_idletasks()
-        x = self.winfo_rootx() + (self.winfo_width() - dialog.winfo_width()) // 2
-        y = self.winfo_rooty() + (self.winfo_height() - dialog.winfo_height()) // 2
-        dialog.geometry(f"+{max(x, 0)}+{max(y, 0)}")
-
-    def choose_folder(self) -> None:
-        chosen = filedialog.askdirectory(title="Choose Forge custom folder or project folder")
-        if chosen:
-            self.loaded_zip = None
-            self.zip_dirty = False
-            self.zip_baseline_snapshot = None
-            self.zip_backup_path = None
-            self.zip_state_text.set("N/A (folder project)")
-            workspace_root = workspace.discover_workspace_root(Path(chosen))
-            self.set_workspace(workspace_root, chosen)
-            self.run_audit()
-
-    def choose_zip(self) -> None:
-        chosen = filedialog.askopenfilename(
-            title="Open Forge ZIP",
-            filetypes=[("All files", "*"), ("ZIP archives", "*.zip")],
+        top = ttk.Frame(dialog, padding=(12, 12, 12, 6))
+        top.pack(fill="x")
+        path_var = tk.StringVar()
+        ttk.Label(top, text="Location:").pack(side="left")
+        ttk.Entry(top, textvariable=path_var, state="readonly").pack(
+            side="left", fill="x", expand=True, padx=(8, 8)
         )
-        if not chosen:
-            return
 
-        chosen_path = Path(chosen)
-        if chosen_path.suffix.casefold() != ".zip":
-            messagebox.showerror(
-                APP_TITLE,
-                f"That is not a ZIP archive:\n{chosen_path}"
+        body = ttk.Frame(dialog, padding=(12, 0, 12, 8))
+        body.pack(fill="both", expand=True)
+
+        browser = ttk.Treeview(
+            body,
+            columns=("type",),
+            show="tree headings",
+            selectmode="browse",
+        )
+        browser.heading("#0", text="Name")
+        browser.heading("type", text="Type")
+        browser.column("#0", width=520, anchor="w")
+        browser.column("type", width=120, anchor="w", stretch=False)
+        browser.pack(side="left", fill="both", expand=True)
+
+        scroll = ttk.Scrollbar(body, orient="vertical", command=browser.yview)
+        scroll.pack(side="right", fill="y")
+        browser.configure(yscrollcommand=scroll.set)
+
+        def initial_directory() -> Path:
+            if self.loaded_zip is not None and self.loaded_zip.parent.exists():
+                return self.loaded_zip.parent
+            raw = self.source_path.get().strip().strip('"')
+            if raw:
+                candidate = Path(raw)
+                if candidate.is_dir():
+                    return candidate
+                if candidate.parent.is_dir():
+                    return candidate.parent
+            return Path.home()
+
+        def populate(path: Path) -> None:
+            try:
+                path = path.expanduser().resolve()
+                children = list(path.iterdir())
+            except Exception as exc:
+                messagebox.showerror(APP_TITLE, f"Could not open folder:\n{exc}", parent=dialog)
+                return
+
+            current["path"] = path
+            path_var.set(str(path))
+            entries.clear()
+            for item in browser.get_children():
+                browser.delete(item)
+
+            folders = sorted((x for x in children if x.is_dir()), key=lambda x: x.name.casefold())
+            zips = sorted(
+                (x for x in children if x.is_file() and x.suffix.casefold() == ".zip"),
+                key=lambda x: x.name.casefold(),
             )
+
+            for index, item in enumerate(folders):
+                iid = f"dir-{index}"
+                entries[iid] = item
+                browser.insert("", "end", iid=iid, text=item.name, values=("Folder",))
+            for index, item in enumerate(zips):
+                iid = f"zip-{index}"
+                entries[iid] = item
+                browser.insert("", "end", iid=iid, text=item.name, values=("ZIP archive",))
+
+        def selected_path() -> Path | None:
+            selection = browser.selection()
+            if not selection:
+                return None
+            return entries.get(selection[0])
+
+        def open_selected() -> None:
+            path = selected_path()
+            if path is None:
+                messagebox.showinfo(APP_TITLE, "Select a folder or ZIP first.", parent=dialog)
+                return
+            dialog.destroy()
+            self.open_project_path(path)
+
+        def activate_selected(_event=None) -> None:
+            path = selected_path()
+            if path is None:
+                return
+            if path.is_dir():
+                populate(path)
+            else:
+                dialog.destroy()
+                self.open_project_path(path)
+
+        def go_up() -> None:
+            path = current["path"]
+            if path is None:
+                return
+            parent = path.parent
+            if parent != path:
+                populate(parent)
+
+        ttk.Button(top, text="Up", command=go_up).pack(side="right")
+
+        browser.bind("<Double-1>", activate_selected)
+        browser.bind("<Return>", lambda _event: open_selected())
+
+        bottom = ttk.Frame(dialog, padding=(12, 0, 12, 12))
+        bottom.pack(fill="x")
+        ttk.Button(bottom, text="Cancel", command=dialog.destroy).pack(side="right")
+        ttk.Button(bottom, text="Open", command=open_selected).pack(side="right", padx=(0, 8))
+
+        populate(initial_directory())
+
+    def open_project_path(self, path: Path) -> None:
+        path = path.expanduser().resolve()
+        if path.is_dir():
+            self._open_project_folder(path)
             return
+        if path.is_file() and path.suffix.casefold() == ".zip":
+            self._open_project_zip(path)
+            return
+        messagebox.showerror(APP_TITLE, f"Choose a folder or ZIP archive:\n{path}")
+
+    def _open_project_folder(self, chosen_path: Path) -> None:
+        self.loaded_zip = None
+        self.zip_dirty = False
+        self.zip_baseline_snapshot = None
+        self.zip_backup_path = None
+        self.zip_state_text.set("N/A (folder project)")
+        workspace_root = workspace.discover_workspace_root(chosen_path)
+        self.set_workspace(workspace_root, str(chosen_path))
+        self.run_audit()
+
+    def _open_project_zip(self, chosen_path: Path) -> None:
         if not zipfile.is_zipfile(chosen_path):
             messagebox.showerror(
                 APP_TITLE,
@@ -362,13 +446,14 @@ class ForgeNaviDesktop(tk.Tk):
         temp = Path(tempfile.mkdtemp(prefix="forge-navi-zip-"))
         self.temp_dirs.append(temp)
         try:
-            workspace_root, root = workspace.safe_extract_workspace_zip(Path(chosen), temp)
+            workspace_root, root = workspace.safe_extract_workspace_zip(chosen_path, temp)
         except Exception as exc:
             shutil.rmtree(temp, ignore_errors=True)
             self.temp_dirs.remove(temp)
             messagebox.showerror(APP_TITLE, f"Could not open ZIP:\n{exc}")
             return
-        self.loaded_zip = Path(chosen).resolve()
+
+        self.loaded_zip = chosen_path
         self.zip_dirty = False
         self.zip_backup_path = None
         self.set_workspace(workspace_root, str(self.loaded_zip))
@@ -382,6 +467,19 @@ class ForgeNaviDesktop(tk.Tk):
             "Edits are tracked; use Save ZIP to update the archive or Save ZIP As... for a copy."
         )
         self.run_audit()
+
+    def choose_folder(self) -> None:
+        chosen = filedialog.askdirectory(title="Choose Forge custom folder or project folder")
+        if chosen:
+            self._open_project_folder(Path(chosen).resolve())
+
+    def choose_zip(self) -> None:
+        chosen = filedialog.askopenfilename(
+            title="Open Forge ZIP",
+            filetypes=[("All files", "*"), ("ZIP archives", "*.zip")],
+        )
+        if chosen:
+            self._open_project_zip(Path(chosen).resolve())
 
     def load_demo(self) -> None:
         self.loaded_zip = None

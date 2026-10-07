@@ -20,14 +20,13 @@
 </div></header>
 <main><div class="wrap">
 <div class="box"><h2>Quick start</h2>
-<p>Download install.ps1, open PowerShell in the download folder, then run:</p>
+<p>Download <code>install.ps1</code> and run it once. The installer creates a <strong>Forge-Navi Community</strong> desktop shortcut; after that, launching the GUI is just a double-click.</p>
 <pre>powershell -ExecutionPolicy Bypass -File .\install.ps1
 
-cd .\Forge-Navi-Community
-py -3 forge_navi_community.py audit demo/custom --report demo/audit-report.json
-py -3 forge_navi_community.py handoff demo/custom demo/generated-token-requirements.json
-py -3 token_navi_community.py validate demo/generated-token-requirements.json
-py -3 forge_navi_community.py package demo/custom dist/demo-forge-package.zip</pre>
+# After install:
+Double-click "Forge-Navi Community" on the desktop
+# or run:
+.\Forge-Navi-Community\Launch Forge-Navi.cmd</pre>
 </div>
 <div class="box"><h2>What you can use it for</h2>
 <ul>

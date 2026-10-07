@@ -164,6 +164,22 @@ class CommunityCoreTests(unittest.TestCase):
             self.assertEqual(summary["errata_green"], 1)
             self.assertEqual(summary["script_statuses"]["cards/e/errata.txt"], "ERRATA-GREEN")
 
+    def test_legacy_script_with_fake_api_is_red(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "custom"
+            card = root / "cards" / "l" / "legacy_bad.txt"
+            card.parent.mkdir(parents=True)
+            card.write_text(
+                "Name:Legacy Bad\n"
+                "Types:Sorcery\n"
+                "A:SP$ TotallyFake | NumCards$ 1\n"
+                "Oracle:Draw a card.\n",
+                encoding="utf-8",
+            )
+            findings, summary = core.audit(root)
+            self.assertEqual(summary["red_scripts"], 1)
+            self.assertTrue(any("does not exist in current Forge" in f.message for f in findings))
+
     def test_safe_repair_regenerates_broken_generated_script(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td) / "custom"

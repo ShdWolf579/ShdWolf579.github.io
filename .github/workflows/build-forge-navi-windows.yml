@@ -4,8 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - "community/forge-navi/**"
-      - "!community/forge-navi/dist/**"
+      - "community/forge-navi/forge_navi_community.py"
+      - "community/forge-navi/forge_navi_desktop.py"
+      - "community/forge-navi/token_navi_community.py"
+      - "community/forge-navi/demo/**"
       - ".github/workflows/build-forge-navi-windows.yml"
   workflow_dispatch:
 
@@ -50,5 +52,6 @@ jobs:
             Write-Host "Executable is unchanged."
           } else {
             git commit -m "Build Forge-Navi Community Windows executable"
-            git push
+            git pull --rebase origin main
+            git push origin HEAD:main
           }

@@ -148,6 +148,58 @@ def workspace_snapshot(workspace_root: Path) -> dict[str, str]:
     return snapshot
 
 
+def zip_snapshot(zip_path: Path) -> dict[str, str]:
+    """Return SHA-256 hashes for every file stored in a ZIP."""
+    zip_path = zip_path.expanduser().resolve()
+    snapshot: dict[str, str] = {}
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        bad = zf.testzip()
+        if bad is not None:
+            raise RuntimeError(f"ZIP CRC check failed at {bad}")
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            name = info.filename.replace("\\", "/").lstrip("/")
+            if not name:
+                continue
+            if name in snapshot:
+                raise RuntimeError(f"ZIP contains duplicate file entry: {name}")
+            h = hashlib.sha256()
+            with zf.open(info, "r") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    h.update(chunk)
+            snapshot[name] = h.hexdigest()
+    return snapshot
+
+
+def compare_snapshots(expected: dict[str, str], actual: dict[str, str]) -> tuple[bool, str]:
+    expected_keys = set(expected)
+    actual_keys = set(actual)
+    missing = sorted(expected_keys - actual_keys, key=str.casefold)
+    extra = sorted(actual_keys - expected_keys, key=str.casefold)
+    changed = sorted(
+        (name for name in expected_keys & actual_keys if expected[name] != actual[name]),
+        key=str.casefold,
+    )
+    if not missing and not extra and not changed:
+        return True, f"{len(expected)} file(s) verified"
+
+    parts = []
+    if missing:
+        parts.append(f"missing {len(missing)}: {', '.join(missing[:5])}")
+    if extra:
+        parts.append(f"extra {len(extra)}: {', '.join(extra[:5])}")
+    if changed:
+        parts.append(f"changed {len(changed)}: {', '.join(changed[:5])}")
+    return False, "; ".join(parts)
+
+
+def verify_zip_matches_workspace(zip_path: Path, workspace_root: Path) -> tuple[bool, str]:
+    expected = workspace_snapshot(workspace_root)
+    actual = zip_snapshot(zip_path)
+    return compare_snapshots(expected, actual)
+
+
 def save_workspace_zip(workspace_root: Path, out: Path) -> int:
     """Persist the entire editable set workspace, including pics/, editions, etc."""
     workspace_root = workspace_root.expanduser().resolve()

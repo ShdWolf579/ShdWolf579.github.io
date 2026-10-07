@@ -206,8 +206,10 @@ def audit(root: Path) -> tuple[list[Finding], dict]:
                 )
             )
 
+    script_files = [display_path(path, root) for path in iter_script_files(root)]
     summary = {
         "root": str(root),
+        "script_files": script_files,
         "scripts_scanned": scanned,
         "errors": sum(f.severity == "ERROR" for f in findings),
         "warnings": sum(f.severity == "WARN" for f in findings),

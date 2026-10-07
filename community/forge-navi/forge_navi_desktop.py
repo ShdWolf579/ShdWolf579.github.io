@@ -161,7 +161,9 @@ class ForgeNaviDesktop(tk.Tk):
         else:
             self.status_text.set("Packaging is blocked until the red findings are resolved.")
 
-        report = root / "forge-navi-report.json"
+        state_dir = root / ".forge-navi"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        report = state_dir / "audit-report.json"
         report.write_text(
             json.dumps(
                 {"summary": summary, "findings": [core.asdict(f) for f in findings]},
@@ -206,9 +208,11 @@ class ForgeNaviDesktop(tk.Tk):
         if chosen is None:
             return
         root = core.normalize_root(chosen)
+        state_dir = root / ".forge-navi"
+        state_dir.mkdir(parents=True, exist_ok=True)
         out = filedialog.asksaveasfilename(
             title="Save token handoff",
-            initialdir=str(root),
+            initialdir=str(root / ".forge-navi"),
             initialfile="token-requirements.json",
             defaultextension=".json",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],

@@ -20,6 +20,15 @@ SVAR_REF_RE = re.compile(r"(?:Execute\$|SubAbility\$|References\$)\s*([A-Za-z0-9
 TOKEN_SCRIPT_RE = re.compile(r"TokenScript\$\s*([A-Za-z0-9_.-]+)")
 
 
+def normalize_root(root: Path) -> Path:
+    """Accept either a Forge custom folder or a project folder containing custom/."""
+    root = root.expanduser().resolve()
+    nested = root / "custom"
+    if nested.is_dir() and ((nested / "cards").exists() or (nested / "tokens").exists()):
+        return nested
+    return root
+
+
 @dataclass
 class Finding:
     severity: str

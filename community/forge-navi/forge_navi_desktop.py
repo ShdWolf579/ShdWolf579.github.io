@@ -154,7 +154,7 @@ class ForgeNaviDesktop(tk.Tk):
         picker = ttk.Frame(self.audit_tab)
         picker.pack(fill="x", pady=(0, 8))
         ttk.Entry(picker, textvariable=self.source_path, state="readonly").pack(side="left", fill="x", expand=True)
-        ttk.Button(picker, text="Open", command=self.open_native_project).pack(side="left", padx=(8, 0))
+        ttk.Button(picker, text="Open...", command=self.open_native_project).pack(side="left", padx=(8, 0))
         ttk.Button(picker, text="Load Demo", command=self.load_demo).pack(side="left", padx=(8, 0))
 
         project_info = ttk.LabelFrame(self.audit_tab, text="Project Source", padding=8)
@@ -322,28 +322,47 @@ class ForgeNaviDesktop(tk.Tk):
 
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         try:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 [str(helper), str(self.winfo_id()), str(initial_dir)],
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
                 creationflags=creationflags,
-                check=False,
             )
         except Exception as exc:
             messagebox.showerror(APP_TITLE, f"Could not launch native Windows picker:\n{exc}")
             return
 
-        if result.returncode == 1:
-            return
-        if result.returncode != 0:
-            detail = (result.stderr or result.stdout or "Unknown picker error").strip()
-            messagebox.showerror(APP_TITLE, f"Native Windows picker failed:\n{detail}")
-            return
+        self.status_text.set("Waiting for project selection...")
 
-        selected = result.stdout.strip()
-        if not selected:
-            return
-        self.open_project_path(Path(selected))
+        def finish_picker() -> None:
+            try:
+                stdout, stderr = process.communicate()
+            except Exception as exc:
+                messagebox.showerror(APP_TITLE, f"Native Windows picker failed:\n{exc}")
+                return
+
+            if process.returncode == 1:
+                self.status_text.set("Open cancelled.")
+                return
+            if process.returncode != 0:
+                detail = (stderr or stdout or "Unknown picker error").strip()
+                messagebox.showerror(APP_TITLE, f"Native Windows picker failed:\n{detail}")
+                return
+
+            selected = (stdout or "").strip()
+            if not selected:
+                self.status_text.set("Open cancelled.")
+                return
+            self.open_project_path(Path(selected))
+
+        def poll_picker() -> None:
+            if process.poll() is None:
+                self.after(100, poll_picker)
+                return
+            finish_picker()
+
+        self.after(100, poll_picker)
 
     def open_project_path(self, path: Path) -> None:
         path = path.expanduser().resolve()

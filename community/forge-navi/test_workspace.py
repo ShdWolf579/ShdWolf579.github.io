@@ -66,6 +66,25 @@ class WorkspaceTests(unittest.TestCase):
             self.assertEqual(inv.counts["token_unresolved_cards"], 1)
             self.assertEqual(inv.cards[0].token_state, "MISSING 1")
 
+    def test_bare_custom_zip_stays_inside_extraction_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            zpath = td / "bare-custom.zip"
+            with zipfile.ZipFile(zpath, "w") as zf:
+                zf.writestr(
+                    "cards/b/broken.txt",
+                    "Name:Broken\nTypes:Sorcery\nOracle:Draw a card.\n",
+                )
+                zf.writestr(
+                    "tokens/demo.txt",
+                    "Name:Demo\nTypes:Creature Scout\nPT:1/1\n",
+                )
+            extraction = td / "extract"
+            workspace_root, custom_root = ws.safe_extract_workspace_zip(zpath, extraction)
+            self.assertEqual(workspace_root, extraction.resolve())
+            self.assertEqual(custom_root, extraction.resolve())
+            self.assertTrue((custom_root / "cards/b/broken.txt").exists())
+
     def test_full_workspace_zip_round_trip_preserves_pics(self):
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)

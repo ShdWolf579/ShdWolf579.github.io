@@ -13,7 +13,13 @@ from tkinter import filedialog, messagebox, ttk
 import forge_navi_community as core
 
 APP_TITLE = "Forge-Navi Community"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.2.1"
+
+
+def resource_path(relative: str) -> Path:
+    """Resolve bundled PyInstaller resources or normal source-tree files."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base / relative
 
 
 def open_path(path: Path) -> None:
@@ -117,7 +123,7 @@ class ForgeNaviDesktop(tk.Tk):
             self.status_text.set("Ready to audit.")
 
     def load_demo(self) -> None:
-        demo = Path(__file__).resolve().parent / "demo" / "custom"
+        demo = resource_path("demo/custom")
         self.root_path.set(str(demo))
         self.run_audit()
 

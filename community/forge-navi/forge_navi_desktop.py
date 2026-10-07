@@ -263,12 +263,21 @@ class ForgeNaviDesktop(tk.Tk):
         self.last_summary = summary
         self.clear_results()
 
+        files_with_findings = {finding.file for finding in findings}
+        for file_name in summary.get("script_files", []):
+            if file_name not in files_with_findings:
+                self.tree.insert(
+                    "", "end",
+                    values=("GREEN", file_name, "No structural findings."),
+                    tags=("GREEN",),
+                )
+
         for finding in findings:
             state = "RED" if finding.severity == "ERROR" else "YELLOW"
             self.tree.insert("", "end", values=(state, finding.file, finding.message), tags=(state,))
 
-        if not findings:
-            self.tree.insert("", "end", values=("GREEN", "—", "No structural findings."), tags=("GREEN",))
+        if not summary.get("script_files"):
+            self.tree.insert("", "end", values=("GREEN", "—", "No scripts found."), tags=("GREEN",))
 
         state = "GREEN" if not summary["errors"] and not summary["warnings"] else (
             "RED" if summary["errors"] else "YELLOW"

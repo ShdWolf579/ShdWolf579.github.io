@@ -88,6 +88,18 @@ class CommunityCoreTests(unittest.TestCase):
         self.assertIn("T:Mode$ Phase | Phase$ Upkeep", draft.script)
         self.assertIn("SVar:TrigEffect1:DB$ Draw | NumCards$ 1", draft.script)
 
+    def test_generated_script_uses_real_newlines(self):
+        draft = compile_card(
+            CardSpec(
+                name="Line Test",
+                mana_cost="1 U",
+                types="Sorcery",
+                oracle="Draw a card.",
+            )
+        )
+        self.assertIn("Name:Line Test\nManaCost:1 U\nTypes:Sorcery\n", draft.script)
+        self.assertNotIn("\\n", draft.script)
+
     def test_unknown_oracle_stays_review(self):
         draft = compile_card(
             CardSpec(

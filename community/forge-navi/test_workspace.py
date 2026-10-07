@@ -85,6 +85,22 @@ class WorkspaceTests(unittest.TestCase):
             self.assertEqual(custom_root, extraction.resolve())
             self.assertTrue((custom_root / "cards/b/broken.txt").exists())
 
+    def test_workspace_snapshot_detects_external_edit(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "Set"
+            _custom, card, _token, _art = self.make_workspace(root)
+            before = ws.workspace_snapshot(root)
+            card.write_text(
+                "Name:Bright Study\nTypes:Sorcery\nA:SP$ TotallyFake\n",
+                encoding="utf-8",
+            )
+            after = ws.workspace_snapshot(root)
+            self.assertNotEqual(before, after)
+            self.assertNotEqual(
+                before["custom/cards/b/bright_study.txt"],
+                after["custom/cards/b/bright_study.txt"],
+            )
+
     def test_full_workspace_zip_round_trip_preserves_pics(self):
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)

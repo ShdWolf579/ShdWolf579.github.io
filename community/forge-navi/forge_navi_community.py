@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Forge-Navi Community Demo.
+"""Forge-Navi Community Core v0.2.
 
 A small, dependency-free structural QA and packaging tool for Forge custom content.
 It intentionally does not include the private Forge-Navi semantic knowledge corpus.

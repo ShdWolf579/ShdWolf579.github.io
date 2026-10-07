@@ -1,0 +1,6 @@
+Name:Demo Scout Token
+ManaCost:no cost
+Types:Token Creature Scout
+PT:1/1
+Colors:White
+Oracle:Demo token used by the Community Edition sample.

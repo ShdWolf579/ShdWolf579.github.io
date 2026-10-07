@@ -18,8 +18,8 @@ from typing import Iterable
 
 from forge_navi_scripter import CardSpec, compile_card, script_relative_path
 
-SVAR_REF_RE = re.compile(r"(?:Execute\\$|SubAbility\\$|References\\$)\\s*([A-Za-z0-9_]+)")
-TOKEN_SCRIPT_RE = re.compile(r"TokenScript\\$\\s*([A-Za-z0-9_.-]+)")
+SVAR_REF_RE = re.compile(r"(?:Execute\$|SubAbility\$|References\$)\s*([A-Za-z0-9_]+)")
+TOKEN_SCRIPT_RE = re.compile(r"TokenScript\$\s*([A-Za-z0-9_.-]+)")
 REVIEW_MARKER_RE = re.compile(r"(?:TODO|FIXME|FORGE-NAVI REVIEW)", re.I)
 
 

@@ -73,7 +73,7 @@ namespace ForgeNaviNativePicker
                     }
                 }
 
-                customize.AddPushButton(SELECT_FOLDER_BUTTON, "Select This Folder");
+                customize.AddPushButton(SELECT_FOLDER_BUTTON, "Select Folder");
 
                 sink = new DialogEventSink(dialog, SELECT_FOLDER_BUTTON);
                 int hr = dialog.Advise(sink, out cookie);

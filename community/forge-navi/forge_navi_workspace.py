@@ -7,6 +7,7 @@ has one durable record per card.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import unicodedata
 import zipfile
@@ -124,6 +125,27 @@ def safe_extract_workspace_zip(zip_path: Path, destination: Path) -> tuple[Path,
     workspace_root = discover_workspace_root(destination)
     custom_root = discover_custom_root(workspace_root)
     return workspace_root, custom_root
+
+
+def workspace_snapshot(workspace_root: Path) -> dict[str, str]:
+    """Content snapshot used to detect edits made inside or outside Navi."""
+    workspace_root = workspace_root.expanduser().resolve()
+    snapshot: dict[str, str] = {}
+    if not workspace_root.exists():
+        return snapshot
+
+    for path in workspace_root.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(workspace_root)
+        if ".forge-navi" in rel.parts:
+            continue
+        h = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                h.update(chunk)
+        snapshot[rel.as_posix()] = h.hexdigest()
+    return snapshot
 
 
 def save_workspace_zip(workspace_root: Path, out: Path) -> int:

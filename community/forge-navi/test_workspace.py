@@ -101,6 +101,27 @@ class WorkspaceTests(unittest.TestCase):
                 after["custom/cards/b/bright_study.txt"],
             )
 
+    def test_zip_snapshot_matches_workspace(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            root = td / "Set"
+            self.make_workspace(root)
+            out = td / "verified.zip"
+            ws.save_workspace_zip(root, out)
+            expected = ws.workspace_snapshot(root)
+            actual = ws.zip_snapshot(out)
+            ok, detail = ws.compare_snapshots(expected, actual)
+            self.assertTrue(ok, detail)
+
+    def test_zip_snapshot_reports_changed_content(self):
+        expected = {"cards/a.txt": "aaa", "cards/b.txt": "bbb"}
+        actual = {"cards/a.txt": "xxx", "cards/c.txt": "ccc"}
+        ok, detail = ws.compare_snapshots(expected, actual)
+        self.assertFalse(ok)
+        self.assertIn("missing 1", detail)
+        self.assertIn("extra 1", detail)
+        self.assertIn("changed 1", detail)
+
     def test_full_workspace_zip_round_trip_preserves_pics(self):
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)

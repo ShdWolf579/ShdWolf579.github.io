@@ -3,9 +3,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$BaseUrl = "https://shdwolf579.github.io/community/forge-navi"
-$ExeUrl = "$BaseUrl/dist/Forge-Navi-Community.exe"
-$HashUrl = "$BaseUrl/dist/SHA256.txt"
+$ExeUrl = "https://raw.githubusercontent.com/ShdWolf579/ShdWolf579.github.io/main/community/forge-navi/dist/Forge-Navi-Community.exe"
+$HashUrl = "https://raw.githubusercontent.com/ShdWolf579/ShdWolf579.github.io/main/community/forge-navi/dist/SHA256.txt"
 $ExePath = Join-Path $Destination "Forge-Navi-Community.exe"
 $HashPath = Join-Path $Destination "SHA256.txt"
 
